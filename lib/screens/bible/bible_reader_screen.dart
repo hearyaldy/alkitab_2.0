@@ -6,10 +6,10 @@ class BibleReaderScreen extends ConsumerStatefulWidget {
   final int chapterId;
 
   const BibleReaderScreen({
-    Key? key,
+    super.key,
     this.bookId,
     this.chapterId = 1,
-  }) : super(key: key);
+  });
 
   @override
   BibleReaderScreenState createState() => BibleReaderScreenState();

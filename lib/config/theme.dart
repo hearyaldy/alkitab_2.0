@@ -53,7 +53,6 @@ class AppTheme {
   // Dark theme
   static ThemeData get darkTheme {
     return ThemeData.dark().copyWith(
-      useMaterial3: true,
       primaryColor: primaryColor,
       // Apply fontFamily correctly:
       textTheme: const TextTheme().apply(fontFamily: fontFamily),
