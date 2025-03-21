@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/register_screen.dart';
@@ -30,8 +29,12 @@ class AppRouter {
       GoRoute(
         path: '/bible-reader',
         builder: (context, state) {
-          final bookId = state.uri.queryParameters['bookId'];
-          final chapterId = int.tryParse(state.uri.queryParameters['chapterId'] ?? '1') ?? 1;
+          // Use state.pathParameters or state.extra instead of queryParameters
+          // depending on your go_router version
+          final Map<String, dynamic> params = state.extra as Map<String, dynamic>? ?? {};
+          final String? bookId = params['bookId'] as String?;
+          final int chapterId = params['chapterId'] as int? ?? 1;
+          
           return BibleReaderScreen(bookId: bookId, chapterId: chapterId);
         },
       ),
