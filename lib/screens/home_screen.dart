@@ -1,49 +1,58 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import 'tabs/home_tab.dart';
 import 'tabs/bible_tab.dart';
 import 'tabs/devotional_tab.dart';
 import 'tabs/profile_tab.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
-  const HomeScreen({super.key});
+  final int tabIndex;
+
+  const HomeScreen(
+      {super.key,
+      required this.tabIndex,
+      required StatefulNavigationShell shell});
 
   @override
-  HomeScreenState createState() => HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class HomeScreenState extends ConsumerState<HomeScreen> {
-  int _selectedIndex = 0;
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  late int _selectedIndex;
 
-  static const List<String> _routes = [
-    '/home',
-    '/bible',
-    '/devotional',
-    '/profile',
-  ];
-
-  final List<Widget> _pages = const [
-    HomeTab(),
-    BibleTab(),
-    DevotionalTab(),
-    ProfileTab(),
+  static final List<Widget> _tabs = [
+    const HomeTab(),
+    const BibleTab(),
+    const DevotionalTab(),
+    const ProfileTab(),
   ];
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final location = GoRouterState.of(context).uri.toString();
-    final index = _routes.indexWhere((r) => location.startsWith(r));
-    if (index != -1 && index != _selectedIndex) {
-      _selectedIndex = index;
-    }
+  void initState() {
+    super.initState();
+    _selectedIndex = widget.tabIndex;
   }
 
   void _onItemTapped(int index) {
-    if (index == _selectedIndex) return;
-    setState(() => _selectedIndex = index);
-    context.go(_routes[index]);
+    if (index != _selectedIndex) {
+      setState(() => _selectedIndex = index);
+      switch (index) {
+        case 0:
+          context.go('/home');
+          break;
+        case 1:
+          context.go('/bible');
+          break;
+        case 2:
+          context.go('/devotional');
+          break;
+        case 3:
+          context.go('/profile');
+          break;
+      }
+    }
   }
 
   @override
@@ -55,7 +64,7 @@ class HomeScreenState extends ConsumerState<HomeScreen> {
           IconButton(
             icon: const Icon(Icons.search),
             onPressed: () {
-              context.go('/search');
+              // Future: Add search functionality
             },
           ),
           IconButton(
@@ -66,28 +75,17 @@ class HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ],
       ),
-      body: _pages[_selectedIndex],
+      body: _tabs[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
         items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Utama'),
+          BottomNavigationBarItem(icon: Icon(Icons.book), label: 'Alkitab'),
           BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Utama',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.menu_book),
-            label: 'Alkitab',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.book),
-            label: 'Renungan',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profil',
-          ),
+              icon: Icon(Icons.menu_book), label: 'Renungan'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
         ],
       ),
     );

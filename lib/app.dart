@@ -1,6 +1,6 @@
+import 'package:alkitab_2_0/router.dart' as AppRouter;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'config/routes.dart';
 import 'config/theme.dart';
 
 class MyApp extends ConsumerWidget {
