@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -40,7 +39,11 @@ final router = GoRouter(
     // Main route for the tab-based navigation
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {
-        return HomeScreen(navigationShell: navigationShell);
+        return HomeScreen(
+          // navigationShell: navigationShell, // Removed as it is not defined in HomeScreen
+          tabIndex: navigationShell.currentIndex,
+          shell: navigationShell,
+        );
       },
       branches: [
         StatefulShellBranch(
