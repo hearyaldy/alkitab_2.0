@@ -21,6 +21,13 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            context.go(
+                '/home'); // You can change this to navigate to the desired page
+          },
+        ),
       ),
       body: ListView(
         children: [
@@ -76,7 +83,9 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           ListTile(
             title: const Text('Default Bible Version'),
-            subtitle: Text(_bibleVersion == 'ABB' ? 'Alkitab Berita Baik' : 'Alkitab Terjemahan Baru'),
+            subtitle: Text(_bibleVersion == 'ABB'
+                ? 'Alkitab Berita Baik'
+                : 'Alkitab Terjemahan Baru'),
             trailing: const Icon(Icons.arrow_forward_ios, size: 16),
             onTap: () {
               _showVersionSelectionDialog();
