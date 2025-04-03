@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../providers/auth_provider.dart';
 
 class ProfileTab extends ConsumerWidget {
@@ -8,87 +8,74 @@ class ProfileTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final themeColor = Colors.indigo;
+    // Get the current user from the auth provider
+    final user = ref.watch(authProvider);
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Center(
-          child: Column(
-            children: [
-              const CircleAvatar(
-                radius: 50,
-                backgroundColor: Colors.indigo,
-                child: Icon(Icons.person, size: 60, color: Colors.white),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'user@example.com',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        _sectionTitle('My Content', themeColor),
-        _settingItem(Icons.book, 'Reading History'),
-        _settingItem(Icons.bookmark, 'Bookmarks'),
-        _settingItem(Icons.highlight, 'Highlights'),
-        _settingItem(Icons.note, 'Notes'),
-        const SizedBox(height: 24),
-        _sectionTitle('Settings', themeColor),
-        ListTile(
-          leading: const Icon(Icons.settings),
-          title: const Text('App Settings'),
-          trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-          onTap: () => context.go('/settings'),
-        ),
-        const Divider(height: 1),
-        const SizedBox(height: 24),
-        _sectionTitle('Account', themeColor),
-        ListTile(
-          leading: const Icon(Icons.logout, color: Colors.red),
-          title: const Text(
-            'Logout',
-            style: TextStyle(color: Colors.red),
-          ),
-          onTap: () => _confirmLogout(context, ref),
-        ),
-      ],
-    );
-  }
+    // Fetch additional user data from the Supabase profiles table
+    final userProfile = ref.watch(
+        userProfileProvider(user?.id)); // Assuming you have a profile provider
 
-  Widget _sectionTitle(String title, Color color) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        title,
-        style: TextStyle(
-          fontSize: 18,
-          color: color.shade700,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-
-  Widget _settingItem(IconData icon, String title) {
-    return Column(
-      children: [
-        ListTile(
-          leading: Icon(icon, color: Colors.indigo),
-          title: Text(title),
-          trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-          onTap: () {
-            // Navigate to details
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Profile'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            context.go('/home');
           },
         ),
-        const Divider(height: 1),
-      ],
+      ),
+      body: user == null
+          ? const Center(child: CircularProgressIndicator())
+          : userProfile.when(
+              data: (profile) => ListView(
+                children: [
+                  // Profile Picture Section (example placeholder)
+                  ListTile(
+                    leading: const Icon(Icons.account_circle, size: 50),
+                    title: Text(
+                      profile?.name ?? 'No Name',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 18),
+                    ),
+                    subtitle: Text(user.email ?? 'No Email'),
+                  ),
+                  const Divider(),
+                  // Settings Button (navigate to Settings Screen)
+                  ListTile(
+                    title: const Text(
+                      'Update Profile',
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    ),
+                    trailing: const Icon(Icons.arrow_forward_ios),
+                    onTap: () {
+                      context.go('/settings');
+                    },
+                  ),
+                  const Divider(),
+                  // Logout Button
+                  ListTile(
+                    title: const Text(
+                      'Logout',
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    ),
+                    leading: const Icon(Icons.logout),
+                    onTap: () {
+                      _showLogoutConfirmation(context, ref);
+                    },
+                  ),
+                ],
+              ),
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stackTrace) =>
+                  Center(child: Text('Error: $error')),
+            ),
     );
   }
 
-  void _confirmLogout(BuildContext context, WidgetRef ref) {
+  void _showLogoutConfirmation(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -102,19 +89,13 @@ class ProfileTab extends ConsumerWidget {
           TextButton(
             onPressed: () async {
               await ref.read(authProvider.notifier).signOut();
-              // ignore: use_build_context_synchronously
               Navigator.pop(context);
-              // ignore: use_build_context_synchronously
               context.go('/login');
             },
-            child: const Text('Logout', style: TextStyle(color: Colors.red)),
+            child: const Text('Logout'),
           ),
         ],
       ),
     );
   }
-}
-
-extension on Color {
-  get shade700 => null;
 }

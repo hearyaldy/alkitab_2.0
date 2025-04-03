@@ -11,6 +11,7 @@ import 'screens/tabs/devotional_tab.dart';
 import 'screens/tabs/profile_tab.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/bible/bible_reader_screen.dart';
+import 'screens/splash_screen.dart'; // Import the splash screen
 
 // Define the GoRouter for your app
 final router = GoRouter(
@@ -40,7 +41,6 @@ final router = GoRouter(
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {
         return HomeScreen(
-          // navigationShell: navigationShell, // Removed as it is not defined in HomeScreen
           tabIndex: navigationShell.currentIndex,
           shell: navigationShell,
         );
@@ -73,14 +73,16 @@ final router = GoRouter(
         StatefulShellBranch(
           routes: [
             GoRoute(
-              path: '/profile',
-              builder: (context, state) => const ProfileTab(),
+              path:
+                  '/profile', // Ensure this points to the profile tab correctly
+              builder: (context, state) =>
+                  const ProfileTab(), // Make sure it's ProfileTab
             ),
           ],
         ),
       ],
     ),
-    // Settings route
+    // Settings route (make sure this is separate from the profile)
     GoRoute(
       path: '/settings',
       builder: (context, state) => const SettingsScreen(),

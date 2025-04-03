@@ -12,6 +12,8 @@ class RegisterScreen extends ConsumerStatefulWidget {
 
 class RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _usernameController =
+      TextEditingController(); // Added username controller
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -20,6 +22,7 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   @override
   void dispose() {
+    _usernameController.dispose(); // Dispose username controller
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -34,11 +37,13 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
       });
 
       try {
+        // Sign up with username, email, and password
         await ref.read(authProvider.notifier).signUp(
-          _emailController.text.trim(),
-          _passwordController.text,
-        );
-        
+              _emailController.text.trim(),
+              _passwordController.text,
+              username: _usernameController.text.trim(), // Passing username
+            );
+
         if (mounted) {
           // Navigate to home screen
           context.go('/home');
@@ -87,7 +92,23 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
                   ),
                 ),
                 const SizedBox(height: 32),
-                
+
+                // Username field
+                TextFormField(
+                  controller: _usernameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Username',
+                    prefixIcon: Icon(Icons.person),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter your username';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+
                 // Email field
                 TextFormField(
                   controller: _emailController,
@@ -107,7 +128,7 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Password field
                 TextFormField(
                   controller: _passwordController,
@@ -127,7 +148,7 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Confirm password field
                 TextFormField(
                   controller: _confirmPasswordController,
@@ -147,7 +168,7 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
                   },
                 ),
                 const SizedBox(height: 24),
-                
+
                 // Register button
                 _isLoading
                     ? const CircularProgressIndicator()
@@ -155,7 +176,7 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
                         onPressed: _register,
                         child: const Text('Register'),
                       ),
-                
+
                 // Error message
                 if (_errorMessage != null)
                   Padding(
@@ -167,9 +188,9 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
                       ),
                     ),
                   ),
-                
+
                 const SizedBox(height: 24),
-                
+
                 // Login link
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
