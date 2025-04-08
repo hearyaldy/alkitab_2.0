@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../providers/auth_provider.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
@@ -12,8 +13,7 @@ class RegisterScreen extends ConsumerStatefulWidget {
 
 class RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _usernameController =
-      TextEditingController(); // Added username controller
+  final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -37,15 +37,25 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
       });
 
       try {
-        // Added username in the sign-up process
-        await ref.read(authProvider.notifier).signUp(
-              username: _usernameController.text.trim(),
-              email: _emailController.text.trim(),
-              password: _passwordController.text,
-            );
+        final email = _emailController.text.trim();
+        final password = _passwordController.text;
+        final username = _usernameController.text.trim();
 
-        if (mounted) {
-          context.go('/home');
+        final response = await Supabase.instance.client.auth.signUp(
+          email: email,
+          password: password,
+          data: {
+            'full_name': username,
+          },
+        );
+
+        if (response.user != null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Registration successful!')),
+            );
+            context.go('/home');
+          }
         }
       } catch (e) {
         setState(() {
@@ -73,42 +83,24 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
           child: Form(
             key: _formKey,
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Logo or app name
-                const Icon(
-                  Icons.book,
-                  size: 80,
-                  color: Colors.blue,
-                ),
+                const Icon(Icons.book, size: 80, color: Colors.blue),
                 const SizedBox(height: 16),
-                const Text(
-                  'Create Account',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                const Text('Create Account',
+                    style:
+                        TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 32),
-
-                // Username field
                 TextFormField(
                   controller: _usernameController,
                   decoration: const InputDecoration(
-                    labelText: 'Username',
+                    labelText: 'Full Name',
                     prefixIcon: Icon(Icons.person),
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your username';
-                    }
-                    return null;
-                  },
+                  validator: (value) => value == null || value.isEmpty
+                      ? 'Please enter your name'
+                      : null,
                 ),
                 const SizedBox(height: 16),
-
-                // Email field
                 TextFormField(
                   controller: _emailController,
                   decoration: const InputDecoration(
@@ -116,19 +108,13 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
                     prefixIcon: Icon(Icons.email),
                   ),
                   keyboardType: TextInputType.emailAddress,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your email';
-                    }
-                    if (!value.contains('@')) {
-                      return 'Please enter a valid email';
-                    }
-                    return null;
-                  },
+                  validator: (value) => value == null || value.isEmpty
+                      ? 'Please enter your email'
+                      : !value.contains('@')
+                          ? 'Enter a valid email'
+                          : null,
                 ),
                 const SizedBox(height: 16),
-
-                // Password field
                 TextFormField(
                   controller: _passwordController,
                   decoration: const InputDecoration(
@@ -136,19 +122,11 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
                     prefixIcon: Icon(Icons.lock),
                   ),
                   obscureText: true,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter a password';
-                    }
-                    if (value.length < 6) {
-                      return 'Password must be at least 6 characters';
-                    }
-                    return null;
-                  },
+                  validator: (value) => value == null || value.length < 6
+                      ? 'Password must be at least 6 characters'
+                      : null,
                 ),
                 const SizedBox(height: 16),
-
-                // Confirm password field
                 TextFormField(
                   controller: _confirmPasswordController,
                   decoration: const InputDecoration(
@@ -156,49 +134,34 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
                     prefixIcon: Icon(Icons.lock),
                   ),
                   obscureText: true,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please confirm your password';
-                    }
-                    if (value != _passwordController.text) {
-                      return 'Passwords do not match';
-                    }
-                    return null;
-                  },
+                  validator: (value) => value != _passwordController.text
+                      ? 'Passwords do not match'
+                      : null,
                 ),
                 const SizedBox(height: 24),
-
-                // Register button
-                _isLoading
-                    ? const CircularProgressIndicator()
-                    : ElevatedButton(
-                        onPressed: _register,
-                        child: const Text('Register'),
-                      ),
-
-                // Error message
+                if (_isLoading)
+                  const CircularProgressIndicator()
+                else
+                  ElevatedButton(
+                    onPressed: _register,
+                    child: const Text('Register'),
+                  ),
                 if (_errorMessage != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 16),
                     child: Text(
                       _errorMessage!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
+                      style:
+                          TextStyle(color: Theme.of(context).colorScheme.error),
                     ),
                   ),
-
                 const SizedBox(height: 24),
-
-                // Login link
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Text("Already have an account?"),
                     TextButton(
-                      onPressed: () {
-                        context.go('/login');
-                      },
+                      onPressed: () => context.go('/login'),
                       child: const Text('Login'),
                     ),
                   ],
