@@ -22,7 +22,7 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   @override
   void dispose() {
-    _usernameController.dispose(); // Dispose username controller
+    _usernameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -37,15 +37,14 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
       });
 
       try {
-        // Sign up with username, email, and password
+        // Added username in the sign-up process
         await ref.read(authProvider.notifier).signUp(
-              _emailController.text.trim(),
-              _passwordController.text,
-              username: _usernameController.text.trim(), // Passing username
+              username: _usernameController.text.trim(),
+              email: _emailController.text.trim(),
+              password: _passwordController.text,
             );
 
         if (mounted) {
-          // Navigate to home screen
           context.go('/home');
         }
       } catch (e) {

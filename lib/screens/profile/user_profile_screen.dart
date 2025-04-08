@@ -3,19 +3,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 final userProfileProvider =
     FutureProvider.family<UserProfile?, String>((ref, userId) async {
-  final response = await Supabase.instance.client
+  final data = await Supabase.instance.client
       .from('profiles')
       .select()
       .eq('user_id', userId)
-      .single()
-      .execute();
+      .maybeSingle();
 
-  if (response.error != null) {
-    throw Exception('Error fetching user profile: ${response.error?.message}');
-  }
+  if (data == null) return null;
 
-  return UserProfile.fromJson(
-      response.data); // Assuming you have a UserProfile model
+  return UserProfile.fromJson(data);
 });
 
 class UserProfile {
@@ -26,8 +22,8 @@ class UserProfile {
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     return UserProfile(
-      name: json['name'],
-      email: json['email'],
+      name: json['name'] ?? '',
+      email: json['email'] ?? '',
     );
   }
 }

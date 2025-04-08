@@ -11,7 +11,7 @@ import 'screens/tabs/devotional_tab.dart';
 import 'screens/tabs/profile_tab.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/bible/bible_reader_screen.dart';
-import 'screens/splash_screen.dart'; // Import the splash screen
+// Import the splash screen
 
 // Define the GoRouter for your app
 final router = GoRouter(
