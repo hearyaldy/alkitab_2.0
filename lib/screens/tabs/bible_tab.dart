@@ -4,90 +4,6 @@ import 'package:go_router/go_router.dart';
 class BibleTab extends StatelessWidget {
   const BibleTab({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    final themeColor = Colors.indigo;
-
-    return DefaultTabController(
-      length: 2,
-      child: NestedScrollView(
-        headerSliverBuilder: (context, innerBoxIsScrolled) => [
-          SliverAppBar(
-            expandedHeight: 160.0,
-            pinned: true,
-            flexibleSpace: FlexibleSpaceBar(
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Image.asset(
-                    'assets/images/header_image.png',
-                    fit: BoxFit.cover,
-                  ),
-                  Container(
-                    alignment: Alignment.bottomLeft,
-                    padding: const EdgeInsets.all(16.0),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withOpacity(0.4)
-                        ],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                      ),
-                    ),
-                    child: const Text(
-                      'Bible',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            bottom: TabBar(
-              tabs: const [
-                Tab(text: 'Perjanjian Lama'),
-                Tab(text: 'Perjanjian Baru'),
-              ],
-              labelColor: themeColor,
-              unselectedLabelColor: Colors.white70,
-              indicatorColor: Colors.white,
-            ),
-          ),
-        ],
-        body: TabBarView(
-          children: [
-            _buildBookList(context, _oldTestamentBooks),
-            _buildBookList(context, _newTestamentBooks),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBookList(BuildContext context, List<Map<String, String>> books) {
-    return ListView.separated(
-      itemCount: books.length,
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      separatorBuilder: (context, index) => const Divider(height: 0),
-      itemBuilder: (context, index) {
-        final book = books[index];
-        return ListTile(
-          title: Text(book['name']!),
-          trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-          onTap: () {
-            final bookId = book['id']!;
-            context.go('/bible-reader?bookId=$bookId&chapterId=1');
-          },
-        );
-      },
-    );
-  }
-
   static final List<Map<String, String>> _oldTestamentBooks = [
     {'id': 'genesis', 'name': 'Kejadian'},
     {'id': 'exodus', 'name': 'Keluaran'},
@@ -159,4 +75,138 @@ class BibleTab extends StatelessWidget {
     {'id': 'jude', 'name': 'Yudas'},
     {'id': 'revelation', 'name': 'Wahyu'},
   ];
+
+  @override
+  Widget build(BuildContext context) {
+    final themeColor = Colors.indigo;
+    return DefaultTabController(
+      length: 2,
+      child: NestedScrollView(
+        headerSliverBuilder: (context, innerBoxIsScrolled) {
+          return [
+            // Header with the collapsible image
+            SliverOverlapAbsorber(
+              handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
+              sliver: SliverAppBar(
+                expandedHeight: 160.0,
+                pinned: true,
+                forceElevated: innerBoxIsScrolled,
+                flexibleSpace: FlexibleSpaceBar(
+                  background: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Image.asset(
+                        'assets/images/header_image.png',
+                        fit: BoxFit.cover,
+                      ),
+                      Container(
+                        alignment: Alignment.bottomLeft,
+                        padding: const EdgeInsets.all(16.0),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withOpacity(0.4)
+                            ],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                          ),
+                        ),
+                        child: const Text(
+                          'Alkitab',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // Pinned TabBar below the header image with a dark background.
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _SliverAppBarDelegate(
+                TabBar(
+                  tabs: const [
+                    Tab(text: 'Perjanjian Lama'),
+                    Tab(text: 'Perjanjian Baru'),
+                  ],
+                  labelColor: themeColor,
+                  unselectedLabelColor: Colors.white70,
+                  indicatorColor: Colors.white,
+                ),
+              ),
+            ),
+          ];
+        },
+        body: TabBarView(
+          children: [
+            _buildBookList(context, _oldTestamentBooks),
+            _buildBookList(context, _newTestamentBooks),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBookList(BuildContext context, List<Map<String, String>> books) {
+    return Builder(
+      builder: (context) {
+        return CustomScrollView(
+          key: PageStorageKey<String>('BookList_${books.hashCode}'),
+          slivers: [
+            // Inject the overlap so that the list starts below the TabBar.
+            SliverOverlapInjector(
+              handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
+            ),
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (BuildContext context, int index) {
+                  final book = books[index];
+                  return ListTile(
+                    title: Text(book['name']!),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () {
+                      final bookId = book['id']!;
+                      context.go('/bible-reader?bookId=$bookId&chapterId=1');
+                    },
+                  );
+                },
+                childCount: books.length,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// Helper delegate to pin the TabBar below the header image.
+class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
+  final TabBar tabBar;
+
+  _SliverAppBarDelegate(this.tabBar);
+
+  @override
+  Widget build(
+      BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(
+      color: Colors.black87, // Darker background for the TabBar.
+      child: tabBar,
+    );
+  }
+
+  @override
+  double get maxExtent => tabBar.preferredSize.height;
+
+  @override
+  double get minExtent => tabBar.preferredSize.height;
+
+  @override
+  bool shouldRebuild(_SliverAppBarDelegate oldDelegate) => false;
 }

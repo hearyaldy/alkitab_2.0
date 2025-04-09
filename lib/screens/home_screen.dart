@@ -10,10 +10,11 @@ import 'tabs/profile_tab.dart';
 class HomeScreen extends ConsumerStatefulWidget {
   final int tabIndex;
 
-  const HomeScreen(
-      {super.key,
-      required this.tabIndex,
-      required StatefulNavigationShell shell});
+  const HomeScreen({
+    super.key,
+    required this.tabIndex,
+    required StatefulNavigationShell shell,
+  });
 
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
@@ -21,6 +22,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   late int _selectedIndex;
+  bool _isFloatingMenuOpen = false;
 
   static final List<Widget> _tabs = [
     const HomeTab(),
@@ -55,26 +57,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
+  void _toggleFloatingMenu() {
+    setState(() {
+      _isFloatingMenuOpen = !_isFloatingMenuOpen;
+    });
+  }
+
+  void _onSettingsPressed() {
+    // Close the floating menu and navigate to settings.
+    setState(() {
+      _isFloatingMenuOpen = false;
+    });
+    context.go('/settings');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Alkitab 2.0'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {
-              // Future: Add search functionality
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              context.go('/settings');
-            },
-          ),
-        ],
-      ),
+      // The fixed AppBar is removed to allow each Tab page's collapsible header to display.
       body: _tabs[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
@@ -86,6 +86,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           BottomNavigationBarItem(
               icon: Icon(Icons.menu_book), label: 'Renungan'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
+        ],
+      ),
+      floatingActionButton: Stack(
+        alignment: Alignment.bottomRight,
+        children: [
+          // Display mini FAB buttons above the main FAB when the menu is open.
+          if (_isFloatingMenuOpen)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 60.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FloatingActionButton(
+                    heroTag: 'settings',
+                    mini: true,
+                    onPressed: _onSettingsPressed,
+                    child: const Icon(Icons.settings),
+                  ),
+                  const SizedBox(height: 8),
+                  // Future buttons can be added here.
+                ],
+              ),
+            ),
+          FloatingActionButton(
+            heroTag: 'mainMenu',
+            onPressed: _toggleFloatingMenu,
+            child: Icon(_isFloatingMenuOpen ? Icons.close : Icons.menu),
+          ),
         ],
       ),
     );

@@ -12,8 +12,6 @@ class ProfileTab extends StatelessWidget {
     final name = userMeta?['full_name'] ?? 'No name set';
     final email = user?.email ?? 'No email';
 
-    final themeColor = Colors.indigo;
-
     return Scaffold(
       body: CustomScrollView(
         slivers: [
