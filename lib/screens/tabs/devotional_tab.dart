@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -16,10 +17,9 @@ class _DevotionalTabState extends State<DevotionalTab> {
 
   // All devotionals from all JSON files combined
   List<dynamic> _allDevotionals = [];
-  // The one we pick for “Today’s Devotional”
+  // The one chosen for “Today’s Devotional”
   Map<String, dynamic>? _todayDevotional;
 
-  // Base MaterialColor for styling
   final MaterialColor _themeColor = Colors.indigo;
 
   @override
@@ -28,10 +28,6 @@ class _DevotionalTabState extends State<DevotionalTab> {
     _fetchAllJsonFiles();
   }
 
-  /// 1) Lists all files in the “devotional-readings” bucket
-  /// 2) For each file with a .json extension, get a public URL and fetch/parse it
-  /// 3) Combine all devotionals into _allDevotionals
-  /// 4) Pick one for today
   Future<void> _fetchAllJsonFiles() async {
     setState(() {
       _isLoading = true;
@@ -42,36 +38,29 @@ class _DevotionalTabState extends State<DevotionalTab> {
 
     try {
       final storage = Supabase.instance.client.storage;
-      // List all objects in “devotional-readings” bucket
       final files = await storage.from('devotional-readings').list(path: '');
-      // Temporary storage
+
       final List<dynamic> combined = [];
-
       for (final fileObj in files) {
-        final fileName = fileObj.name; // e.g. "Set1.json"
-        if (!fileName.endsWith('.json')) continue; // Only process JSON files
-
-        // Build a public URL
+        final fileName = fileObj.name;
+        if (!fileName.endsWith('.json')) {
+          continue;
+        }
         final publicUrl =
             storage.from('devotional-readings').getPublicUrl(fileName);
 
-        // Fetch the file content
         final response = await http.get(Uri.parse(publicUrl));
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
-          // Append if it's a JSON list
           if (data is List) {
             combined.addAll(data);
           }
-        } else {
-          debugPrint('Error fetching $fileName: ${response.statusCode}');
         }
       }
 
       _allDevotionals = combined;
       _pickTodayDevotional();
     } catch (e) {
-      debugPrint('Error listing/fetching devotionals: $e');
       _hasError = true;
     }
 
@@ -82,8 +71,6 @@ class _DevotionalTabState extends State<DevotionalTab> {
     }
   }
 
-  /// Picks one item from the combined devotionals for “today,”
-  /// based on day-of-year mod list length. This yields a stable daily pick.
   void _pickTodayDevotional() {
     if (_allDevotionals.isEmpty) return;
     final now = DateTime.now();
@@ -149,6 +136,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
                   ),
                 )
               else ...[
+                // “Today’s Devotional”
                 if (_todayDevotional != null)
                   _buildTodayDevotion(_todayDevotional!)
                 else
@@ -169,7 +157,6 @@ class _DevotionalTabState extends State<DevotionalTab> {
     );
   }
 
-  /// Builds the top card for today's devotional
   Widget _buildTodayDevotion(Map<String, dynamic> devo) {
     final title = devo['title'] as String? ?? 'Untitled';
     final verseRef = devo['verse_reference'] as String? ?? '';
@@ -178,7 +165,6 @@ class _DevotionalTabState extends State<DevotionalTab> {
     final reflection = devo['reflection_questions'] as List<dynamic>? ?? [];
     final prayer = devo['prayer'] as String? ?? '';
 
-    // Example date display: M/D/YYYY
     final now = DateTime.now();
     final dateString = '${now.month}/${now.day}/${now.year}';
 
@@ -203,10 +189,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
               ),
               const SizedBox(height: 8),
               // Date
-              Text(
-                dateString,
-                style: TextStyle(color: Colors.grey[600]),
-              ),
+              Text(dateString, style: TextStyle(color: Colors.grey[600])),
               const SizedBox(height: 16),
               // Verse text
               Text(
@@ -215,7 +198,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
                     const TextStyle(fontSize: 16, fontStyle: FontStyle.italic),
               ),
               const SizedBox(height: 8),
-              // Verse reference in bold
+              // Verse reference
               Text(
                 verseRef,
                 style: TextStyle(
@@ -224,7 +207,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
                 ),
               ),
               const SizedBox(height: 16),
-              // Devotional content
+              // Devotional text
               Text(
                 devoText,
                 style: const TextStyle(fontSize: 16, height: 1.5),
@@ -260,7 +243,6 @@ class _DevotionalTabState extends State<DevotionalTab> {
     );
   }
 
-  /// Section Header for “Previous Devotionals”
   Widget _buildSectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -277,7 +259,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
           ),
           TextButton(
             onPressed: () {
-              // If you want to navigate to a full list page
+              // If you want a full list page
             },
             child: const Text('See All'),
           ),
@@ -286,13 +268,25 @@ class _DevotionalTabState extends State<DevotionalTab> {
     );
   }
 
-  /// Builds a list of the other devotionals that are NOT today's
+  /// Takes up to 5 random devotionals from "others" and displays them.
   List<Widget> _buildPreviousDevotionalList() {
     final others =
         _allDevotionals.where((dev) => dev != _todayDevotional).toList();
 
-    return List.generate(others.length, (i) {
-      final devo = others[i] as Map<String, dynamic>;
+    if (others.isEmpty) {
+      return [
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16),
+          child: Text('No previous devotionals found.'),
+        ),
+      ];
+    }
+
+    others.shuffle(Random());
+    final randomFive = others.take(5).toList();
+
+    return List.generate(randomFive.length, (i) {
+      final devo = randomFive[i] as Map<String, dynamic>;
       final title = devo['title'] as String? ?? 'Untitled';
       final verseRef = devo['verse_reference'] as String? ?? '';
 
@@ -304,17 +298,119 @@ class _DevotionalTabState extends State<DevotionalTab> {
           child: ListTile(
             title: Text(title),
             subtitle: Text(verseRef),
-            onTap: () {
-              // If you want a detail view for older devotionals
-            },
+            onTap: () => _showDevotionalDetail(devo),
           ),
         ),
       );
     });
   }
+
+  /// Show a bottom sheet with full content, plus a close button
+  void _showDevotionalDetail(Map<String, dynamic> devo) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        final title = devo['title'] as String? ?? 'Untitled';
+        final verseRef = devo['verse_reference'] as String? ?? '';
+        final verseText = devo['verse_text'] as String? ?? '';
+        final devoText = devo['devotional_text'] as String? ?? '';
+        final reflection = devo['reflection_questions'] as List<dynamic>? ?? [];
+        final prayer = devo['prayer'] as String? ?? '';
+
+        return DraggableScrollableSheet(
+          expand: false,
+          builder: (context, scrollController) {
+            return SingleChildScrollView(
+              controller: scrollController,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Drag handle
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: _themeColor,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    verseText,
+                    style: const TextStyle(fontStyle: FontStyle.italic),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    verseRef,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: _themeColor.shade700,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    devoText,
+                    style: const TextStyle(fontSize: 16, height: 1.5),
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Reflection Questions:',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    reflection.map((q) => '• $q').join('\n\n'),
+                    style: const TextStyle(fontSize: 16, height: 1.5),
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Prayer:',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    prayer,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontStyle: FontStyle.italic,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  // CLOSE BUTTON
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context), // closes sheet
+                      child: const Text('Close'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 }
 
-/// Optional extension for MaterialColor so you can do: _themeColor.shade700
 extension MaterialColorX on MaterialColor {
   Color get shade700 => this[700]!;
 }
