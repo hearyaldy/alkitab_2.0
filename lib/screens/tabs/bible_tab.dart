@@ -78,7 +78,7 @@ class BibleTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final themeColor = Colors.indigo;
+    final themeColor = const Color.fromARGB(255, 244, 224, 2);
     return DefaultTabController(
       length: 2,
       child: NestedScrollView(
@@ -196,7 +196,8 @@ class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
   Widget build(
       BuildContext context, double shrinkOffset, bool overlapsContent) {
     return Container(
-      color: Colors.black87, // Darker background for the TabBar.
+      color: const Color.fromARGB(
+          221, 90, 89, 89), // Darker background for the TabBar.
       child: tabBar,
     );
   }

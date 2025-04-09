@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'router.dart';
@@ -8,10 +9,13 @@ import 'router.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load .env variables
+  // Load environment variables from .env file.
   await dotenv.load();
 
-  // Initialize Supabase with .env variables
+  // Initialize date formatting for the Malay locale.
+  await initializeDateFormatting('ms', null);
+
+  // Initialize Supabase with your credentials.
   await Supabase.initialize(
     url: dotenv.env['SUPABASE_URL']!,
     anonKey: dotenv.env['SUPABASE_ANON_KEY']!,

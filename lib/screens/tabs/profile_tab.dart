@@ -77,13 +77,13 @@ class _ProfileTabState extends State<ProfileTab> {
 
   // Upload the profile image to your Supabase bucket.
   Future<void> _uploadProfilePhoto(File imageFile, String userId) async {
-    final fileName = 'profile_photos/profile_$userId.jpg';
+    final fileName = 'profile_images/profile_$userId.jpg';
     try {
-      await Supabase.instance.client.storage.from('profile_photos').upload(
+      await Supabase.instance.client.storage.from('profile_images').upload(
           fileName, imageFile,
           fileOptions: const FileOptions(upsert: true));
       final publicUrl = Supabase.instance.client.storage
-          .from('profile_photos')
+          .from('profile_images')
           .getPublicUrl(fileName);
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Profile photo updated.\nURL: $publicUrl')));
