@@ -16,26 +16,36 @@ class ProfileTab extends StatefulWidget {
 class _ProfileTabState extends State<ProfileTab> {
   final _formKey = GlobalKey<FormState>();
 
+  // Controllers for display name and email.
   late TextEditingController _nameController;
   late TextEditingController _emailController;
 
-  // Placeholders for additional metadata.
+  // Track last login / last password change for user metadata.
   String _lastLogin = 'Not available';
   String _lastPasswordChange = 'Not available';
 
+  // Local file reference (if needed for other logic), but we’ll rely on the server URL for display.
   File? _profileImage;
 
+  // The public URL of the uploaded profile photo from Supabase, if any.
+  String? _photoUrl;
+
+  // Supabase user object
   final user = Supabase.instance.client.auth.currentUser;
 
   @override
   void initState() {
     super.initState();
+
+    // Load existing metadata so that we can show the current name & photo URL.
     final userMeta = user?.userMetadata;
     _nameController = TextEditingController(text: userMeta?['full_name'] ?? '');
     _emailController = TextEditingController(text: user?.email ?? '');
+    _photoUrl = userMeta?['profile_url'];
+
+    // Additional metadata examples
     _lastLogin = user?.lastSignInAt ?? 'Not available';
-    _lastPasswordChange =
-        'Not available'; // Replace with real data if available.
+    _lastPasswordChange = 'Not available'; // or retrieve from your data source
   }
 
   @override
@@ -45,7 +55,7 @@ class _ProfileTabState extends State<ProfileTab> {
     super.dispose();
   }
 
-  // Compress the image using flutter_image_compress.
+  // Compress the image before uploading
   Future<File?> compressImage(File file) async {
     final targetPath =
         '${file.parent.path}/${DateTime.now().millisecondsSinceEpoch}_compressed.jpg';
@@ -58,7 +68,7 @@ class _ProfileTabState extends State<ProfileTab> {
     return File(result.path);
   }
 
-  // Allow the user to pick a new profile image.
+  // Let the user pick an image from their gallery
   Future<void> _pickProfileImage() async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
@@ -66,41 +76,62 @@ class _ProfileTabState extends State<ProfileTab> {
       final file = File(pickedFile.path);
       final compressed = await compressImage(file);
       if (compressed != null) {
-        setState(() {
-          _profileImage = compressed;
-        });
+        // 1) Upload the file to Supabase
         final userId = Supabase.instance.client.auth.currentUser!.id;
-        await _uploadProfilePhoto(compressed, userId);
+        final publicUrl = await _uploadProfilePhoto(compressed, userId);
+
+        // 2) If upload is successful, store the URL in the user's metadata
+        if (publicUrl != null) {
+          await Supabase.instance.client.auth.updateUser(
+            UserAttributes(
+              data: {'profile_url': publicUrl},
+            ),
+          );
+
+          // 3) Update the local UI to show the new remote image
+          setState(() {
+            _profileImage = null; // No longer relying on the local file
+            _photoUrl = publicUrl; // Display the server image
+          });
+        }
       }
     }
   }
 
-  // Upload the profile image to your Supabase bucket.
-  Future<void> _uploadProfilePhoto(File imageFile, String userId) async {
-    final fileName = 'profile_images/profile_$userId.jpg';
+  // Upload the profile image to your Supabase bucket and return the public URL
+  Future<String?> _uploadProfilePhoto(File imageFile, String userId) async {
+    // Use the correct bucket name: "profile-images"
+    final fileName = 'profile-images/profile_$userId.jpg';
     try {
-      await Supabase.instance.client.storage.from('profile_images').upload(
+      await Supabase.instance.client.storage.from('profile-images').upload(
           fileName, imageFile,
           fileOptions: const FileOptions(upsert: true));
+
+      // Get the public URL for this file
       final publicUrl = Supabase.instance.client.storage
-          .from('profile_images')
+          .from('profile-images')
           .getPublicUrl(fileName);
+
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Profile photo updated.\nURL: $publicUrl')));
+        SnackBar(content: Text('Profile photo updated.\nURL: $publicUrl')),
+      );
+
+      return publicUrl;
     } catch (e) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Upload error: $e')));
+      return null;
     }
   }
 
-  // Update profile (only display name editable; email remains read-only).
+  // Update user’s display name in metadata
   Future<void> _updateProfile() async {
     if (_formKey.currentState?.validate() ?? false) {
       final newName = _nameController.text.trim();
       try {
         final response = await Supabase.instance.client.auth.updateUser(
           UserAttributes(
-            email: _emailController.text,
+            email: _emailController.text, // Typically read-only
             data: {'full_name': newName},
           ),
         );
@@ -118,6 +149,7 @@ class _ProfileTabState extends State<ProfileTab> {
     }
   }
 
+  // Confirm logout
   Future<void> _confirmLogout() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -147,10 +179,10 @@ class _ProfileTabState extends State<ProfileTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Use a CustomScrollView for collapsible header and content
+      // CustomScrollView allows for collapsible header
       body: CustomScrollView(
         slivers: [
-          // Collapsible header similar to DevotionalTab header style.
+          // SliverAppBar with a background image
           SliverAppBar(
             pinned: true,
             expandedHeight: 160,
@@ -169,7 +201,7 @@ class _ProfileTabState extends State<ProfileTab> {
                 fit: StackFit.expand,
                 children: [
                   Image.asset(
-                    'assets/images/header_image.png',
+                    'assets/images/header_image.png', // Change to your header image path
                     fit: BoxFit.cover,
                   ),
                   Container(
@@ -188,17 +220,17 @@ class _ProfileTabState extends State<ProfileTab> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // User image in content area.
+                    // Tapping the avatar picks a new photo
                     Center(
                       child: GestureDetector(
                         onTap: _pickProfileImage,
                         child: CircleAvatar(
                           radius: 50,
                           backgroundColor: Colors.blue,
-                          backgroundImage: _profileImage != null
-                              ? FileImage(_profileImage!)
+                          backgroundImage: _photoUrl != null
+                              ? NetworkImage(_photoUrl!)
                               : null,
-                          child: _profileImage == null
+                          child: _photoUrl == null
                               ? const Icon(Icons.person,
                                   size: 50, color: Colors.white)
                               : null,
