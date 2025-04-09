@@ -10,29 +10,61 @@ class BibleTab extends StatelessWidget {
 
     return DefaultTabController(
       length: 2,
-      child: Column(
-        children: [
-          Container(
-            color: themeColor.shade50,
-            child: const TabBar(
-              tabs: [
+      child: NestedScrollView(
+        headerSliverBuilder: (context, innerBoxIsScrolled) => [
+          SliverAppBar(
+            expandedHeight: 160.0,
+            pinned: true,
+            flexibleSpace: FlexibleSpaceBar(
+              background: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.asset(
+                    'assets/images/header_image.png',
+                    fit: BoxFit.cover,
+                  ),
+                  Container(
+                    alignment: Alignment.bottomLeft,
+                    padding: const EdgeInsets.all(16.0),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withOpacity(0.4)
+                        ],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                    ),
+                    child: const Text(
+                      'Bible',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            bottom: TabBar(
+              tabs: const [
                 Tab(text: 'Perjanjian Lama'),
                 Tab(text: 'Perjanjian Baru'),
               ],
-              labelColor: Colors.indigo,
-              unselectedLabelColor: Colors.grey,
-              indicatorColor: Colors.indigo,
-            ),
-          ),
-          Expanded(
-            child: TabBarView(
-              children: [
-                _buildBookList(context, _oldTestamentBooks),
-                _buildBookList(context, _newTestamentBooks),
-              ],
+              labelColor: themeColor,
+              unselectedLabelColor: Colors.white70,
+              indicatorColor: Colors.white,
             ),
           ),
         ],
+        body: TabBarView(
+          children: [
+            _buildBookList(context, _oldTestamentBooks),
+            _buildBookList(context, _newTestamentBooks),
+          ],
+        ),
       ),
     );
   }
