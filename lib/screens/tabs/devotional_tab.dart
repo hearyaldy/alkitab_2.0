@@ -15,10 +15,16 @@ class _DevotionalTabState extends State<DevotionalTab> {
   bool _isLoading = false;
   bool _hasError = false;
 
-  // All devotionals from all JSON files combined
+  // All devotionals from JSON
   List<dynamic> _allDevotionals = [];
-  // The one chosen for “Today’s Devotional”
+  // The chosen daily item
   Map<String, dynamic>? _todayDevotional;
+
+  // A mock reading streak
+  int _readingStreak = 3;
+
+  // Temporary notes text controller
+  final TextEditingController _notesController = TextEditingController();
 
   final MaterialColor _themeColor = Colors.indigo;
 
@@ -39,16 +45,14 @@ class _DevotionalTabState extends State<DevotionalTab> {
     try {
       final storage = Supabase.instance.client.storage;
       final files = await storage.from('devotional-readings').list(path: '');
-
       final List<dynamic> combined = [];
+
       for (final fileObj in files) {
         final fileName = fileObj.name;
-        if (!fileName.endsWith('.json')) {
-          continue;
-        }
+        if (!fileName.endsWith('.json')) continue;
+
         final publicUrl =
             storage.from('devotional-readings').getPublicUrl(fileName);
-
         final response = await http.get(Uri.parse(publicUrl));
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
@@ -83,7 +87,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
   Widget build(BuildContext context) {
     return CustomScrollView(
       slivers: [
-        // Collapsible SliverAppBar
+        // SliverAppBar
         SliverAppBar(
           pinned: true,
           expandedHeight: 160,
@@ -102,17 +106,17 @@ class _DevotionalTabState extends State<DevotionalTab> {
               fit: StackFit.expand,
               children: [
                 Image.asset(
-                  'assets/images/header_image.png', // your background image
+                  'assets/images/header_image.png',
                   fit: BoxFit.cover,
                 ),
                 Container(
-                  color: Colors.black.withOpacity(0.54),
+                  color: Colors.black.withOpacity(0.5),
                 ),
               ],
             ),
           ),
         ),
-        // Main Sliver content
+        // Main content
         SliverList(
           delegate: SliverChildListDelegate(
             [
@@ -130,26 +134,17 @@ class _DevotionalTabState extends State<DevotionalTab> {
               else if (_allDevotionals.isEmpty)
                 const Padding(
                   padding: EdgeInsets.all(16.0),
-                  child: Text(
-                    'No devotionals found in the “devotional-readings” bucket.',
-                    textAlign: TextAlign.center,
-                  ),
+                  child: Text('No devotionals found.'),
                 )
-              else ...[
-                // “Today’s Devotional”
-                if (_todayDevotional != null)
-                  _buildTodayDevotion(_todayDevotional!)
-                else
-                  const Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: Text('No devotionals available.'),
-                  ),
-                const SizedBox(height: 32),
-                _buildSectionHeader('Previous Devotionals'),
-                const SizedBox(height: 8),
-                ..._buildPreviousDevotionalList(),
-                const SizedBox(height: 16),
-              ],
+              else
+                _buildTodayDevotion(_todayDevotional ?? {}),
+
+              const SizedBox(height: 32),
+              // Possibly a "Previous Devotionals" section:
+              _buildSectionHeader('Previous Devotionals'),
+              const SizedBox(height: 8),
+              ..._buildPreviousDevotionalList(),
+              const SizedBox(height: 16),
             ],
           ),
         ),
@@ -168,75 +163,146 @@ class _DevotionalTabState extends State<DevotionalTab> {
     final now = DateTime.now();
     final dateString = '${now.month}/${now.day}/${now.year}';
 
+    // Example container with a slight gradient for the background
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Card(
-        elevation: 4,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Title
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: _themeColor,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [_themeColor.shade50, Colors.white],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Card(
+          // elevation might be overshadowed by the container color,
+          // but let's keep it for now
+          color: Colors.transparent, // so gradient shows
+          elevation: 0,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Reading Streak
+                Text(
+                  'Streak: $_readingStreak days',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontStyle: FontStyle.italic,
+                    color: Colors.orange[800],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              // Date
-              Text(dateString, style: TextStyle(color: Colors.grey[600])),
-              const SizedBox(height: 16),
-              // Verse text
-              Text(
-                verseText,
-                style:
-                    const TextStyle(fontSize: 16, fontStyle: FontStyle.italic),
-              ),
-              const SizedBox(height: 8),
-              // Verse reference
-              Text(
-                verseRef,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: _themeColor.shade700,
+                const SizedBox(height: 4),
+                // Title
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: _themeColor,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              // Devotional text
-              Text(
-                devoText,
-                style: const TextStyle(fontSize: 16, height: 1.5),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Reflection Questions:',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                reflection.map((q) => '• $q').join('\n\n'),
-                style: const TextStyle(fontSize: 16, height: 1.5),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Prayer:',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                prayer,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontStyle: FontStyle.italic,
-                  height: 1.5,
+                const SizedBox(height: 8),
+                // Date
+                Text(dateString, style: TextStyle(color: Colors.grey[600])),
+                const SizedBox(height: 16),
+                // Verse text
+                Text(
+                  verseText,
+                  style: const TextStyle(
+                      fontSize: 16, fontStyle: FontStyle.italic),
                 ),
-              ),
-            ],
+                const SizedBox(height: 8),
+                // Verse reference
+                Text(
+                  verseRef,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: _themeColor.shade700,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Devotional text
+                Text(
+                  devoText,
+                  style: const TextStyle(fontSize: 16, height: 1.5),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Reflection Questions:',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  reflection.map((q) => '• $q').join('\n\n'),
+                  style: const TextStyle(fontSize: 16, height: 1.5),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Prayer:',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  prayer,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontStyle: FontStyle.italic,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Quick Notes
+                const Text(
+                  'My Notes:',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: _notesController,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    hintText: 'Write your thoughts or prayer here...',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onSubmitted: (value) {
+                    // Save to local or Supabase, etc. ...
+                  },
+                ),
+                const SizedBox(height: 16),
+                // Action Buttons Row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.bookmark_border),
+                      tooltip: 'Bookmark this Devotional',
+                      onPressed: () {
+                        // handle your bookmark logic
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('Devotional bookmarked!')),
+                        );
+                      },
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.share),
+                      tooltip: 'Share Devotional',
+                      onPressed: () {
+                        // handle share logic
+                        // e.g. share the verse text, reflection
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -259,7 +325,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
           ),
           TextButton(
             onPressed: () {
-              // If you want a full list page
+              // Link to a full list view if desired
             },
             child: const Text('See All'),
           ),
@@ -268,7 +334,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
     );
   }
 
-  /// Takes up to 5 random devotionals from "others" and displays them.
+  /// Up to 5 random previous devotions
   List<Widget> _buildPreviousDevotionalList() {
     final others =
         _allDevotionals.where((dev) => dev != _todayDevotional).toList();
@@ -277,7 +343,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
       return [
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 16),
-          child: Text('No previous devotionals found.'),
+          child: Text('No previous devotionals.'),
         ),
       ];
     }
@@ -298,116 +364,19 @@ class _DevotionalTabState extends State<DevotionalTab> {
           child: ListTile(
             title: Text(title),
             subtitle: Text(verseRef),
-            onTap: () => _showDevotionalDetail(devo),
+            onTap: () {
+              // e.g. show detail in bottom sheet or new screen
+            },
           ),
         ),
       );
     });
   }
 
-  /// Show a bottom sheet with full content, plus a close button
-  void _showDevotionalDetail(Map<String, dynamic> devo) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        final title = devo['title'] as String? ?? 'Untitled';
-        final verseRef = devo['verse_reference'] as String? ?? '';
-        final verseText = devo['verse_text'] as String? ?? '';
-        final devoText = devo['devotional_text'] as String? ?? '';
-        final reflection = devo['reflection_questions'] as List<dynamic>? ?? [];
-        final prayer = devo['prayer'] as String? ?? '';
-
-        return DraggableScrollableSheet(
-          expand: false,
-          builder: (context, scrollController) {
-            return SingleChildScrollView(
-              controller: scrollController,
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Drag handle
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: _themeColor,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    verseText,
-                    style: const TextStyle(fontStyle: FontStyle.italic),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    verseRef,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: _themeColor.shade700,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    devoText,
-                    style: const TextStyle(fontSize: 16, height: 1.5),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Reflection Questions:',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    reflection.map((q) => '• $q').join('\n\n'),
-                    style: const TextStyle(fontSize: 16, height: 1.5),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Prayer:',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    prayer,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontStyle: FontStyle.italic,
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  // CLOSE BUTTON
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(context), // closes sheet
-                      child: const Text('Close'),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
+  @override
+  void dispose() {
+    _notesController.dispose();
+    super.dispose();
   }
 }
 
