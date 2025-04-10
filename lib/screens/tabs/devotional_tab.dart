@@ -15,15 +15,15 @@ class _DevotionalTabState extends State<DevotionalTab> {
   bool _isLoading = false;
   bool _hasError = false;
 
-  // Combined list of devotionals from all JSON files.
+  // Combined list of devotionals from JSON files
   List<dynamic> _allDevotionals = [];
-  // Today's devotional chosen based on day-of-year mod.
+  // Today's devotional chosen by day-of-year logic
   Map<String, dynamic>? _todayDevotional;
 
-  // Example reading streak value
+  // Example reading streak (in real app, track & persist this value)
   int _readingStreak = 3;
 
-  // A controller for the "My Notes" field
+  // Controller for the "My Notes" field
   final TextEditingController _notesController = TextEditingController();
 
   // Base color for styling
@@ -35,8 +35,8 @@ class _DevotionalTabState extends State<DevotionalTab> {
     _fetchAllJsonFiles();
   }
 
-  /// Fetch all JSON files from the public bucket "devotional-readings",
-  /// parse their content, combine the devotionals, then pick a daily item.
+  /// Fetches all JSON files from the "devotional-readings" bucket, merges their content,
+  /// and picks today's devotional.
   Future<void> _fetchAllJsonFiles() async {
     setState(() {
       _isLoading = true;
@@ -47,14 +47,19 @@ class _DevotionalTabState extends State<DevotionalTab> {
 
     try {
       final storage = Supabase.instance.client.storage;
+      // List all objects in the devotional-readings bucket root (adjust path if needed)
       final files = await storage.from('devotional-readings').list(path: '');
-      final List<dynamic> combined = [];
 
+      final List<dynamic> combined = [];
       for (final fileObj in files) {
         final fileName = fileObj.name; // e.g. "Set1.json", "Set2.json", etc.
-        if (!fileName.endsWith('.json')) continue;
+        if (!fileName.endsWith('.json')) continue; // Only process JSON files
+
+        // Generate the public URL for the file.
         final publicUrl =
             storage.from('devotional-readings').getPublicUrl(fileName);
+
+        // Fetch and decode the file content.
         final response = await http.get(Uri.parse(publicUrl));
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
@@ -79,7 +84,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
     }
   }
 
-  /// Chooses a "today" devotional based on day-of-year mod list length.
+  /// Picks a devotional for "Today" based on the day-of-year modulo the total number.
   void _pickTodayDevotional() {
     if (_allDevotionals.isEmpty) return;
     final now = DateTime.now();
@@ -90,11 +95,46 @@ class _DevotionalTabState extends State<DevotionalTab> {
         'Today’s devotional index: $index, title: ${_todayDevotional?["title"]}');
   }
 
+  /// Inserts the provided devotional into the "user_bookmarks" table as a devotional bookmark.
+  Future<void> _bookmarkDevotional(Map<String, dynamic> devotional) async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You must be logged in to bookmark.')),
+      );
+      return;
+    }
+    // Prepare the data to insert. Adjust keys to match your table columns.
+    final data = {
+      'user_id': user.id,
+      'title': devotional['title'],
+      'verse_reference': devotional['verse_reference'],
+      'verse_text': devotional['verse_text'],
+      'devotional_text': devotional['devotional_text'],
+      'reflection_questions': devotional['reflection_questions'],
+      'prayer': devotional['prayer'],
+      'created_at': DateTime.now().toIso8601String(),
+      'bookmark_type': 'devotional', // differentiate if using a unified table
+    };
+
+    final response =
+        await Supabase.instance.client.from('user_bookmarks').insert(data);
+    if (response.error == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Devotional bookmarked!')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: ${response.error!.message}')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return CustomScrollView(
       slivers: [
-        // Collapsible header with SliverAppBar
+        // Collapsible header using SliverAppBar
         SliverAppBar(
           pinned: true,
           expandedHeight: 160,
@@ -113,7 +153,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
               fit: StackFit.expand,
               children: [
                 Image.asset(
-                  'assets/images/header_image.png', // Customize your header image
+                  'assets/images/header_image.png', // Replace with your actual image
                   fit: BoxFit.cover,
                 ),
                 Container(
@@ -123,7 +163,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
             ),
           ),
         ),
-        // Main content in a SliverList
+        // Main content using a SliverList
         SliverList(
           delegate: SliverChildListDelegate(
             [
@@ -147,7 +187,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
                   ),
                 )
               else ...[
-                // Today's Devotional card
+                // "Today's Devotional" card
                 if (_todayDevotional != null)
                   _buildTodayDevotion(_todayDevotional!)
                 else
@@ -168,7 +208,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
     );
   }
 
-  /// Builds the "Today’s Devotional" card with additional features.
+  /// Builds the card for "Today's Devotional" with interactive elements.
   Widget _buildTodayDevotion(Map<String, dynamic> devo) {
     final title = devo['title'] as String? ?? 'Untitled';
     final verseRef = devo['verse_reference'] as String? ?? '';
@@ -177,7 +217,6 @@ class _DevotionalTabState extends State<DevotionalTab> {
     final reflection = devo['reflection_questions'] as List<dynamic>? ?? [];
     final prayer = devo['prayer'] as String? ?? '';
 
-    // Display current date
     final now = DateTime.now();
     final dateString = '${now.month}/${now.day}/${now.year}';
 
@@ -202,7 +241,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Reading streak and date row
+                // Row showing reading streak and date.
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -221,7 +260,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                // Devotional title
+                // Devotional Title
                 Text(
                   title,
                   style: TextStyle(
@@ -246,12 +285,13 @@ class _DevotionalTabState extends State<DevotionalTab> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                // Main devotional text
+                // Main devotional content
                 Text(
                   devoText,
                   style: const TextStyle(fontSize: 16, height: 1.5),
                 ),
                 const SizedBox(height: 24),
+                // Reflection Questions
                 const Text(
                   'Reflection Questions:',
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
@@ -262,6 +302,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
                   style: const TextStyle(fontSize: 15, height: 1.5),
                 ),
                 const SizedBox(height: 20),
+                // Prayer
                 const Text(
                   'Prayer:',
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
@@ -273,7 +314,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
                       fontSize: 15, fontStyle: FontStyle.italic, height: 1.5),
                 ),
                 const SizedBox(height: 20),
-                // Notes field for user's reflections
+                // Notes field
                 const Text(
                   'My Notes:',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -289,30 +330,24 @@ class _DevotionalTabState extends State<DevotionalTab> {
                     ),
                   ),
                   onSubmitted: (value) {
-                    // Implement note saving logic here (local or Supabase)
+                    // Implement note saving logic here.
                   },
                 ),
                 const SizedBox(height: 16),
-                // Action buttons for sharing and bookmarking
+                // Action buttons row for Bookmark and Share
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     IconButton(
                       icon: const Icon(Icons.bookmark_border),
                       tooltip: 'Bookmark this Devotional',
-                      onPressed: () {
-                        // Implement bookmarking logic here.
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Devotional bookmarked!')),
-                        );
-                      },
+                      onPressed: () => _bookmarkDevotional(devo),
                     ),
                     IconButton(
                       icon: const Icon(Icons.share),
                       tooltip: 'Share Devotional',
                       onPressed: () {
-                        // For actual sharing, integrate the share_plus package.
+                        // Implement share functionality (e.g., via share_plus)
                       },
                     ),
                   ],
@@ -325,7 +360,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
     );
   }
 
-  /// Builds the section header for previous devotionals.
+  /// Builds a section header for previous devotionals.
   Widget _buildSectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -342,7 +377,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
           ),
           TextButton(
             onPressed: () {
-              // Optionally navigate to a full list of devotionals.
+              // Optionally navigate to a full list view.
             },
             child: const Text('See All'),
           ),
@@ -386,7 +421,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
     });
   }
 
-  /// Displays a detailed view of the devotional in a bottom sheet including a Close button.
+  /// Opens a bottom sheet showing the full devotional detail along with a Close button.
   void _showDevotionalDetail(Map<String, dynamic> devo) {
     showModalBottomSheet(
       context: context,
@@ -471,7 +506,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
                         fontSize: 16, fontStyle: FontStyle.italic, height: 1.5),
                   ),
                   const SizedBox(height: 24),
-                  // Close button to dismiss the bottom sheet
+                  // Close button
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
@@ -495,7 +530,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
   }
 }
 
-/// Extension to simplify access to a specific shade of MaterialColor.
+/// Optional extension for easier shade access.
 extension MaterialColorX on MaterialColor {
   Color get shade700 => this[700]!;
 }
