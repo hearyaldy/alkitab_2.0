@@ -71,6 +71,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     context.go('/settings');
   }
 
+  void _onBookmarkPressed() {
+    // Close the floating menu and navigate to your bookmarks screen.
+    setState(() {
+      _isFloatingMenuOpen = false;
+    });
+    context.go('/bookmarks');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -91,7 +99,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       floatingActionButton: Stack(
         alignment: Alignment.bottomRight,
         children: [
-          // Display mini FAB buttons above the main FAB when the menu is open.
+          // Floating action mini buttons appear when the menu is open.
           if (_isFloatingMenuOpen)
             Padding(
               padding: const EdgeInsets.only(bottom: 60.0),
@@ -99,13 +107,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   FloatingActionButton(
+                    heroTag: 'bookmark',
+                    mini: true,
+                    onPressed: _onBookmarkPressed,
+                    child: const Icon(Icons.bookmark),
+                  ),
+                  const SizedBox(height: 8),
+                  FloatingActionButton(
                     heroTag: 'settings',
                     mini: true,
                     onPressed: _onSettingsPressed,
                     child: const Icon(Icons.settings),
                   ),
                   const SizedBox(height: 8),
-                  // Future buttons can be added here.
                 ],
               ),
             ),

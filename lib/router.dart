@@ -11,9 +11,8 @@ import 'screens/tabs/devotional_tab.dart';
 import 'screens/tabs/profile_tab.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/bible/bible_reader_screen.dart';
-// Import the splash screen
+import 'screens/bookmarks/bookmarks_screen.dart'; // Import your bookmarks screen
 
-// Define the GoRouter for your app
 final router = GoRouter(
   initialLocation: '/home',
   redirect: (context, state) {
@@ -37,7 +36,7 @@ final router = GoRouter(
       path: '/reset-password',
       builder: (context, state) => const ResetPasswordScreen(),
     ),
-    // Main route for the tab-based navigation
+    // Main route for tab-based navigation
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {
         return HomeScreen(
@@ -73,21 +72,17 @@ final router = GoRouter(
         StatefulShellBranch(
           routes: [
             GoRoute(
-              path:
-                  '/profile', // Ensure this points to the profile tab correctly
-              builder: (context, state) =>
-                  const ProfileTab(), // Make sure it's ProfileTab
+              path: '/profile',
+              builder: (context, state) => const ProfileTab(),
             ),
           ],
         ),
       ],
     ),
-    // Settings route (make sure this is separate from the profile)
     GoRoute(
       path: '/settings',
       builder: (context, state) => const SettingsScreen(),
     ),
-    // Bible reader route with parameters
     GoRoute(
       path: '/bible-reader',
       builder: (context, state) {
@@ -96,6 +91,11 @@ final router = GoRouter(
             int.tryParse(state.uri.queryParameters['chapterId'] ?? '1') ?? 1;
         return BibleReaderScreen(bookId: bookId, chapterId: chapterId);
       },
+    ),
+    // New route for the bookmarks screen.
+    GoRoute(
+      path: '/bookmarks',
+      builder: (context, state) => const BookmarksScreen(),
     ),
   ],
 );
