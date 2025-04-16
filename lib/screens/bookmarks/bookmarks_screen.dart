@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:share_plus/share_plus.dart';
+import 'dart:convert';
 
 class BookmarksScreen extends StatefulWidget {
   const BookmarksScreen({Key? key}) : super(key: key);
@@ -10,6 +12,38 @@ class BookmarksScreen extends StatefulWidget {
 }
 
 class _BookmarksScreenState extends State<BookmarksScreen> {
+  bool _isLoadingDevotionals = false;
+  Future<void> _loadDevotionals() async {
+    setState(() => _isLoadingDevotionals = true);
+    try {
+      final storage = Supabase.instance.client.storage;
+      final files = await storage.from('devotional-readings').list(path: '');
+
+      final List<Map<String, dynamic>> combined = [];
+      for (final file in files) {
+        if (!file.name.endsWith('.json')) continue;
+        final response = await Supabase.instance.client.storage
+            .from('devotional-readings')
+            .download(file.name);
+        final content = String.fromCharCodes(response);
+        final parsed = jsonDecode(content);
+        if (parsed is List) {
+          combined.addAll(parsed.cast<Map<String, dynamic>>());
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _allDevotionals = combined;
+          _isLoadingDevotionals = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to load devotionals: \$e');
+    }
+  }
+
+  List<Map<String, dynamic>> _allDevotionals = [];
   late Future<List<Map<String, dynamic>>> _bookmarkFuture;
 
   final MaterialColor _themeColor = Colors.indigo;
@@ -17,6 +51,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
   @override
   void initState() {
     super.initState();
+    _loadDevotionals();
     _bookmarkFuture = fetchBookmarks();
   }
 
@@ -24,7 +59,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) throw Exception("User not authenticated");
 
-    debugPrint("Current user ID: ${user.id}");
+    debugPrint("Current user ID: \${user.id}");
 
     final response = await Supabase.instance.client
         .from('user_bookmarks')
@@ -32,7 +67,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
         .eq('user_id', user.id)
         .order('created_at', ascending: false);
 
-    debugPrint("Bookmarks response: $response");
+    debugPrint("Bookmarks response: \$response");
 
     if (response is List) {
       return response.map((e) => Map<String, dynamic>.from(e)).toList();
@@ -44,14 +79,14 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
   Future<void> _deleteBookmark(dynamic bookmarkId) async {
     try {
       debugPrint(
-          'Raw bookmark id: $bookmarkId (type: ${bookmarkId.runtimeType})');
+          'Raw bookmark id: \$bookmarkId (type: \${bookmarkId.runtimeType})');
 
       final response = await Supabase.instance.client
           .from('user_bookmarks')
           .delete()
           .eq('id', bookmarkId);
 
-      debugPrint('Delete response: $response');
+      debugPrint('Delete response: \$response');
 
       setState(() {
         _bookmarkFuture = fetchBookmarks();
@@ -61,9 +96,9 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
         const SnackBar(content: Text("Bookmark deleted")),
       );
     } catch (e, stack) {
-      debugPrint('Delete error: $e\n$stack');
+      debugPrint('Delete error: \$e\n\$stack');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Failed to delete bookmark: $e")),
+        SnackBar(content: Text("Failed to delete bookmark: \$e")),
       );
     }
   }
@@ -145,10 +180,11 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
               child: FutureBuilder<List<Map<String, dynamic>>>(
                 future: _bookmarkFuture,
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
+                  if (_isLoadingDevotionals ||
+                      snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   } else if (snapshot.hasError) {
-                    return Center(child: Text("Error: ${snapshot.error}"));
+                    return Center(child: Text("Error: \${snapshot.error}"));
                   } else if (snapshot.data!.isEmpty) {
                     return const Center(child: Text("No bookmarks found."));
                   } else {
@@ -216,7 +252,118 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                                   },
                                 ),
                                 onTap: () {
-                                  // Example: context.push('/devotionalDetail', extra: b);
+                                  final devotional = _allDevotionals.firstWhere(
+                                    (dev) =>
+                                        dev['verse_reference'] ==
+                                        b['verse_reference'],
+                                    orElse: () => {},
+                                  );
+
+                                  if (devotional.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                          content: Text(
+                                              'Devotional content not found.')),
+                                    );
+                                    return;
+                                  }
+
+                                  showModalBottomSheet(
+                                    context: context,
+                                    isScrollControlled: true,
+                                    shape: const RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.vertical(
+                                          top: Radius.circular(16)),
+                                    ),
+                                    builder: (ctx) {
+                                      return DraggableScrollableSheet(
+                                        expand: false,
+                                        builder: (context, scrollController) {
+                                          return SingleChildScrollView(
+                                            controller: scrollController,
+                                            padding: const EdgeInsets.all(16),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  b['title'] ?? 'Untitled',
+                                                  style: const TextStyle(
+                                                      fontSize: 20,
+                                                      fontWeight:
+                                                          FontWeight.bold),
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Text(
+                                                  b['verse_reference'] ?? '',
+                                                  style: const TextStyle(
+                                                      fontStyle:
+                                                          FontStyle.italic),
+                                                ),
+                                                const SizedBox(height: 16),
+                                                Text(
+                                                  devotional[
+                                                          'devotional_text'] ??
+                                                      '',
+                                                  style: const TextStyle(
+                                                      height: 1.5),
+                                                ),
+                                                const SizedBox(height: 16),
+                                                const Text('Prayer:',
+                                                    style: TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold)),
+                                                Text(
+                                                  devotional['prayer'] ?? '',
+                                                  style: const TextStyle(
+                                                      fontStyle:
+                                                          FontStyle.italic),
+                                                ),
+                                                const SizedBox(height: 24),
+                                                Align(
+                                                  alignment:
+                                                      Alignment.centerRight,
+                                                  child: TextButton(
+                                                    onPressed: () =>
+                                                        Navigator.pop(context),
+                                                    child: const Text('Close'),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Align(
+                                                  alignment:
+                                                      Alignment.centerRight,
+                                                  child: TextButton.icon(
+                                                    onPressed: () {
+                                                      final title = b[
+                                                              'title'] ??
+                                                          'Untitled Devotional';
+                                                      final verse =
+                                                          b['verse_reference'] ??
+                                                              '';
+                                                      final text = devotional[
+                                                              'devotional_text'] ??
+                                                          '';
+                                                      final prayer = devotional[
+                                                              'prayer'] ??
+                                                          '';
+                                                      final content =
+                                                          '$title\n$verse\n\n$text\n\n🙏 $prayer';
+                                                      Share.share(content,
+                                                          subject: title);
+                                                    },
+                                                    icon:
+                                                        const Icon(Icons.share),
+                                                    label: const Text('Share'),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                      );
+                                    },
+                                  );
                                 },
                               ),
                             ),
