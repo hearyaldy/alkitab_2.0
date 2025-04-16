@@ -24,11 +24,15 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) throw Exception("User not authenticated");
 
+    debugPrint("Current user ID: ${user.id}");
+
     final response = await Supabase.instance.client
         .from('user_bookmarks')
         .select()
         .eq('user_id', user.id)
         .order('id', ascending: false);
+
+    debugPrint("Bookmarks response: $response");
 
     return response as List<Map<String, dynamic>>;
   }
