@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'tabs/home_tab.dart';
+import 'tabs/home_tab.dart' as home;
 import 'tabs/bible_tab.dart';
 import 'tabs/devotional_tab.dart';
-import 'tabs/profile_tab.dart';
+import 'tabs/profile_tab.dart' as profile;
 
 class HomeScreen extends ConsumerStatefulWidget {
   final int tabIndex;
@@ -25,10 +25,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _isFloatingMenuOpen = false;
 
   static final List<Widget> _tabs = [
-    const HomeTab(),
+    const home.HomeTab(),
     const BibleTab(),
     const DevotionalTab(),
-    const ProfileTab(),
+    const profile.ProfileTab(),
   ];
 
   @override
@@ -64,7 +64,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _onSettingsPressed() {
-    // Close the floating menu and navigate to settings.
     setState(() {
       _isFloatingMenuOpen = false;
     });
@@ -72,7 +71,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _onBookmarkPressed() {
-    // Close the floating menu and navigate to your bookmarks screen.
     setState(() {
       _isFloatingMenuOpen = false;
     });
@@ -82,7 +80,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // The fixed AppBar is removed to allow each Tab page's collapsible header to display.
       body: _tabs[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
@@ -99,7 +96,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       floatingActionButton: Stack(
         alignment: Alignment.bottomRight,
         children: [
-          // Floating action mini buttons appear when the menu is open.
           if (_isFloatingMenuOpen)
             Padding(
               padding: const EdgeInsets.only(bottom: 60.0),
