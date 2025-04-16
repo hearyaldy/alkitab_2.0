@@ -1,9 +1,11 @@
+// Updated with search + bottom sheet + modern verse styling
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:go_router/go_router.dart';
-import 'package:alkitab_2_0/models/bible_model.dart'; // ✅ Make sure this file exists
+import 'package:alkitab_2_0/models/bible_model.dart';
+import 'package:alkitab_2_0/constants/bible_data.dart';
 
 class BibleReaderScreen extends ConsumerStatefulWidget {
   final String? bookId;
@@ -47,7 +49,7 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
 
     final jsonData = json.decode(response.body);
     final List<dynamic> allVerses = jsonData['verses'];
-    final bookNum = _getBookIndex(_currentBookId);
+    final bookNum = getBookIndex(_currentBookId);
 
     final filtered = allVerses
         .where((v) => v['book'] == bookNum && v['chapter'] == _currentChapter)
@@ -66,7 +68,7 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bookName = _getBookName(_currentBookId);
+    final bookName = getBookName(_currentBookId);
 
     return Scaffold(
       appBar: AppBar(
@@ -74,8 +76,36 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/bible'),
         ),
-        title: Text('$bookName $_currentChapter ($_currentVersion)'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${getBookName(_currentBookId)} Pas. $_currentChapter',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            Text(
+              'Versi: $_currentVersion',
+              style: const TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () async {
+              final selectedBookId = await showSearch<String>(
+                context: context,
+                delegate: BibleSearchDelegate(),
+              );
+              if (selectedBookId != null) {
+                setState(() {
+                  _currentBookId = selectedBookId;
+                  _currentChapter = 1;
+                  _versesFuture = _fetchVerses();
+                });
+              }
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.font_download),
             onPressed: () => setState(() => _showSettings = !_showSettings),
@@ -114,11 +144,38 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                 } else {
                   final verses = snapshot.data!;
                   return ListView.builder(
-                    padding: const EdgeInsets.all(16.0),
+                    padding: const EdgeInsets.all(12.0),
                     itemCount: verses.length,
-                    itemBuilder: (context, index) => _buildVerseItem(
-                      verses[index].verseNumber,
-                      verses[index].text,
+                    itemBuilder: (context, index) => Card(
+                      elevation: 1,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: RichText(
+                          text: TextSpan(
+                            children: [
+                              TextSpan(
+                                text: '${verses[index].verseNumber} ',
+                                style: TextStyle(
+                                  fontSize: _fontSize - 2,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blueGrey,
+                                ),
+                              ),
+                              TextSpan(
+                                text: verses[index].text,
+                                style: TextStyle(
+                                  fontSize: _fontSize,
+                                  color: Colors.black87,
+                                  height: 1.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
                   );
                 }
@@ -150,19 +207,8 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
         ),
       );
 
-  Widget _buildChapterNavigation() => Container(
+  Widget _buildChapterNavigation() => Padding(
         padding: const EdgeInsets.symmetric(vertical: 8.0),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.3),
-              spreadRadius: 1,
-              blurRadius: 2,
-              offset: const Offset(0, 1),
-            ),
-          ],
-        ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -179,7 +225,7 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
             GestureDetector(
               onTap: _showChapterSelector,
               child: Text(
-                'Fasal $_currentChapter',
+                'Pasal $_currentChapter',
                 style:
                     const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
@@ -187,7 +233,7 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
             const SizedBox(width: 8),
             IconButton(
               icon: const Icon(Icons.arrow_forward_ios),
-              onPressed: _currentChapter < _getMaxChapters(_currentBookId)
+              onPressed: _currentChapter < getMaxChapters(_currentBookId)
                   ? () => setState(() {
                         _currentChapter++;
                         _versesFuture = _fetchVerses();
@@ -198,25 +244,55 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
         ),
       );
 
-  Widget _buildVerseItem(int verseNumber, String verseText) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8.0),
-        child: RichText(
-          text: TextSpan(
+  void _showChapterSelector() => showModalBottomSheet(
+        context: context,
+        builder: (context) => Container(
+          padding: const EdgeInsets.all(16),
+          height: 400,
+          child: Column(
             children: [
-              TextSpan(
-                text: '$verseNumber ',
-                style: TextStyle(
-                  fontSize: _fontSize - 2,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey[600],
-                ),
-              ),
-              TextSpan(
-                text: verseText,
-                style: TextStyle(
-                  fontSize: _fontSize,
-                  color: Colors.black,
-                  height: 1.5,
+              Text('Pilih Pasal - ${getBookName(_currentBookId)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              Expanded(
+                child: GridView.builder(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 5,
+                    childAspectRatio: 1,
+                  ),
+                  itemCount: getMaxChapters(_currentBookId),
+                  itemBuilder: (context, index) {
+                    final chapter = index + 1;
+                    return InkWell(
+                      onTap: () {
+                        Navigator.pop(context);
+                        setState(() {
+                          _currentChapter = chapter;
+                          _versesFuture = _fetchVerses();
+                        });
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: _currentChapter == chapter
+                              ? Colors.blue
+                              : Colors.grey[200],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '$chapter',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: _currentChapter == chapter
+                                  ? Colors.white
+                                  : Colors.black,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
             ],
@@ -259,266 +335,49 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
           ),
         ),
       );
+}
 
-  void _showChapterSelector() => showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text('Pilih Fasal - ${_getBookName(_currentBookId)}'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: GridView.builder(
-              shrinkWrap: true,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 5,
-                childAspectRatio: 1,
-              ),
-              itemCount: _getMaxChapters(_currentBookId),
-              itemBuilder: (context, index) {
-                final chapterNumber = index + 1;
-                return InkWell(
-                  onTap: () {
-                    Navigator.pop(context);
-                    setState(() {
-                      _currentChapter = chapterNumber;
-                      _versesFuture = _fetchVerses();
-                    });
-                  },
-                  child: Container(
-                    margin: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: _currentChapter == chapterNumber
-                          ? Colors.blue
-                          : Colors.grey[200],
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Center(
-                      child: Text(
-                        chapterNumber.toString(),
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: _currentChapter == chapterNumber
-                              ? Colors.white
-                              : Colors.black,
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-      );
+class BibleSearchDelegate extends SearchDelegate<String> {
+  final List<String> allBooks =
+      bookNameMap.entries.map((e) => e.value).toList();
 
-  /// MAPS — Same as previous reply, but updated with Malay names
-  int _getBookIndex(String bookId) => _bookIndexMap[bookId] ?? 1;
-  int _getMaxChapters(String bookId) => _chapterCountMap[bookId] ?? 1;
-  String _getBookName(String bookId) => _bookNameMap[bookId] ?? bookId;
+  @override
+  List<Widget>? buildActions(BuildContext context) {
+    return [
+      IconButton(icon: const Icon(Icons.clear), onPressed: () => query = '')
+    ];
+  }
 
-  final Map<String, int> _bookIndexMap = {
-    'genesis': 1,
-    'exodus': 2,
-    'leviticus': 3,
-    'numbers': 4,
-    'deuteronomy': 5,
-    'joshua': 6,
-    'judges': 7,
-    'ruth': 8,
-    '1_samuel': 9,
-    '2_samuel': 10,
-    '1_kings': 11,
-    '2_kings': 12,
-    '1_chronicles': 13,
-    '2_chronicles': 14,
-    'ezra': 15,
-    'nehemiah': 16,
-    'esther': 17,
-    'job': 18,
-    'psalms': 19,
-    'proverbs': 20,
-    'ecclesiastes': 21,
-    'song_of_solomon': 22,
-    'isaiah': 23,
-    'jeremiah': 24,
-    'lamentations': 25,
-    'ezekiel': 26,
-    'daniel': 27,
-    'hosea': 28,
-    'joel': 29,
-    'amos': 30,
-    'obadiah': 31,
-    'jonah': 32,
-    'micah': 33,
-    'nahum': 34,
-    'habakkuk': 35,
-    'zephaniah': 36,
-    'haggai': 37,
-    'zechariah': 38,
-    'malachi': 39,
-    'matt': 40,
-    'mark': 41,
-    'luke': 42,
-    'john': 43,
-    'acts': 44,
-    'romans': 45,
-    '1_corinthians': 46,
-    '2_corinthians': 47,
-    'galatians': 48,
-    'ephesians': 49,
-    'philippians': 50,
-    'colossians': 51,
-    '1_thessalonians': 52,
-    '2_thessalonians': 53,
-    '1_timothy': 54,
-    '2_timothy': 55,
-    'titus': 56,
-    'philemon': 57,
-    'hebrews': 58,
-    'james': 59,
-    '1_peter': 60,
-    '2_peter': 61,
-    '1_john': 62,
-    '2_john': 63,
-    '3_john': 64,
-    'jude': 65,
-    'revelation': 66
-  };
+  @override
+  Widget? buildLeading(BuildContext context) {
+    return IconButton(
+        icon: const Icon(Icons.arrow_back),
+        onPressed: () => close(context, ''));
+  }
 
-  final Map<String, String> _bookNameMap = {
-    'genesis': 'Kejadian',
-    'exodus': 'Keluaran',
-    'leviticus': 'Imamat',
-    'numbers': 'Bilangan',
-    'deuteronomy': 'Ulangan',
-    'joshua': 'Yosua',
-    'judges': 'Hakim-Hakim',
-    'ruth': 'Rut',
-    '1_samuel': '1 Samuel',
-    '2_samuel': '2 Samuel',
-    '1_kings': '1 Raja-Raja',
-    '2_kings': '2 Raja-Raja',
-    '1_chronicles': '1 Tawarikh',
-    '2_chronicles': '2 Tawarikh',
-    'ezra': 'Ezra',
-    'nehemiah': 'Nehemia',
-    'esther': 'Ester',
-    'job': 'Ayub',
-    'psalms': 'Mazmur',
-    'proverbs': 'Amsal',
-    'ecclesiastes': 'Pengkhotbah',
-    'song_of_solomon': 'Kidung Agung',
-    'isaiah': 'Yesaya',
-    'jeremiah': 'Yeremia',
-    'lamentations': 'Ratapan',
-    'ezekiel': 'Yehezkiel',
-    'daniel': 'Daniel',
-    'hosea': 'Hosea',
-    'joel': 'Yoel',
-    'amos': 'Amos',
-    'obadiah': 'Obaja',
-    'jonah': 'Yunus',
-    'micah': 'Mikha',
-    'nahum': 'Nahum',
-    'habakkuk': 'Habakuk',
-    'zephaniah': 'Zefanya',
-    'haggai': 'Hagai',
-    'zechariah': 'Zakharia',
-    'malachi': 'Maleakhi',
-    'matt': 'Matius',
-    'mark': 'Markus',
-    'luke': 'Lukas',
-    'john': 'Yohanes',
-    'acts': 'Kisah Para Rasul',
-    'romans': 'Roma',
-    '1_corinthians': '1 Korintus',
-    '2_corinthians': '2 Korintus',
-    'galatians': 'Galatia',
-    'ephesians': 'Efesus',
-    'philippians': 'Filipi',
-    'colossians': 'Kolose',
-    '1_thessalonians': '1 Tesalonika',
-    '2_thessalonians': '2 Tesalonika',
-    '1_timothy': '1 Timotius',
-    '2_timothy': '2 Timotius',
-    'titus': 'Titus',
-    'philemon': 'Filemon',
-    'hebrews': 'Ibrani',
-    'james': 'Yakobus',
-    '1_peter': '1 Petrus',
-    '2_peter': '2 Petrus',
-    '1_john': '1 Yohanes',
-    '2_john': '2 Yohanes',
-    '3_john': '3 Yohanes',
-    'jude': 'Yudas',
-    'revelation': 'Wahyu'
-  };
+  @override
+  Widget buildResults(BuildContext context) => buildSuggestions(context);
 
-  final Map<String, int> _chapterCountMap = {
-    'genesis': 50,
-    'exodus': 40,
-    'leviticus': 27,
-    'numbers': 36,
-    'deuteronomy': 34,
-    'joshua': 24,
-    'judges': 21,
-    'ruth': 4,
-    '1_samuel': 31,
-    '2_samuel': 24,
-    '1_kings': 22,
-    '2_kings': 25,
-    '1_chronicles': 29,
-    '2_chronicles': 36,
-    'ezra': 10,
-    'nehemiah': 13,
-    'esther': 10,
-    'job': 42,
-    'psalms': 150,
-    'proverbs': 31,
-    'ecclesiastes': 12,
-    'song_of_solomon': 8,
-    'isaiah': 66,
-    'jeremiah': 52,
-    'lamentations': 5,
-    'ezekiel': 48,
-    'daniel': 12,
-    'hosea': 14,
-    'joel': 3,
-    'amos': 9,
-    'obadiah': 1,
-    'jonah': 4,
-    'micah': 7,
-    'nahum': 3,
-    'habakkuk': 3,
-    'zephaniah': 3,
-    'haggai': 2,
-    'zechariah': 14,
-    'malachi': 4,
-    'matt': 28,
-    'mark': 16,
-    'luke': 24,
-    'john': 21,
-    'acts': 28,
-    'romans': 16,
-    '1_corinthians': 16,
-    '2_corinthians': 13,
-    'galatians': 6,
-    'ephesians': 6,
-    'philippians': 4,
-    'colossians': 4,
-    '1_thessalonians': 5,
-    '2_thessalonians': 3,
-    '1_timothy': 6,
-    '2_timothy': 4,
-    'titus': 3,
-    'philemon': 1,
-    'hebrews': 13,
-    'james': 5,
-    '1_peter': 5,
-    '2_peter': 3,
-    '1_john': 5,
-    '2_john': 1,
-    '3_john': 1,
-    'jude': 1,
-    'revelation': 22
-  };
+  @override
+  Widget buildSuggestions(BuildContext context) {
+    final suggestions = allBooks
+        .where((name) => name.toLowerCase().contains(query.toLowerCase()))
+        .toList();
+
+    return ListView.builder(
+      itemCount: suggestions.length,
+      itemBuilder: (context, index) {
+        final bookName = suggestions[index];
+        final bookId =
+            bookNameMap.entries.firstWhere((e) => e.value == bookName).key;
+        return ListTile(
+          title: Text(bookName),
+          subtitle: Text(bookId),
+          onTap: () {
+            close(context, bookId);
+          },
+        );
+      },
+    );
+  }
 }
