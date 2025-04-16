@@ -139,11 +139,12 @@ class _DevotionalTabState extends State<DevotionalTab> {
     final data = {
       'user_id': user.id,
       'verse_reference': verseRef,
+      'title': devotional['title'] ?? 'Untitled',
+      'created_at': DateTime.now().toIso8601String(),
+      'bookmark_type': 'devotional',
       'chapter_id': 0,
       'book_id': 0,
       'verse_id': 0,
-      'created_at': DateTime.now().toIso8601String(),
-      'bookmark_type': 'devotional',
     };
 
     try {

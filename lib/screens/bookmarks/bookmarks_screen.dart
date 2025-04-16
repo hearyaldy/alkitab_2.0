@@ -30,26 +30,42 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
         .from('user_bookmarks')
         .select()
         .eq('user_id', user.id)
-        .order('id', ascending: false);
+        .order('created_at', ascending: false);
 
     debugPrint("Bookmarks response: $response");
 
-    return response as List<Map<String, dynamic>>;
+    if (response is List) {
+      return response.map((e) => Map<String, dynamic>.from(e)).toList();
+    } else {
+      throw Exception("Invalid response format");
+    }
   }
 
-  Future<void> _deleteBookmark(int bookmarkId) async {
-    await Supabase.instance.client
-        .from('user_bookmarks')
-        .delete()
-        .eq('id', bookmarkId);
+  Future<void> _deleteBookmark(dynamic bookmarkId) async {
+    try {
+      debugPrint(
+          'Raw bookmark id: $bookmarkId (type: ${bookmarkId.runtimeType})');
 
-    setState(() {
-      _bookmarkFuture = fetchBookmarks();
-    });
+      final response = await Supabase.instance.client
+          .from('user_bookmarks')
+          .delete()
+          .eq('id', bookmarkId);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Bookmark deleted")),
-    );
+      debugPrint('Delete response: $response');
+
+      setState(() {
+        _bookmarkFuture = fetchBookmarks();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Bookmark deleted")),
+      );
+    } catch (e, stack) {
+      debugPrint('Delete error: $e\n$stack');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Failed to delete bookmark: $e")),
+      );
+    }
   }
 
   @override
@@ -171,7 +187,33 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                                 ),
                                 trailing: IconButton(
                                   icon: const Icon(Icons.delete),
-                                  onPressed: () => _deleteBookmark(b['id']),
+                                  tooltip: 'Delete Bookmark',
+                                  onPressed: () async {
+                                    final shouldDelete = await showDialog<bool>(
+                                      context: context,
+                                      builder: (ctx) => AlertDialog(
+                                        title: const Text('Delete Bookmark'),
+                                        content: const Text(
+                                            'Are you sure you want to delete this bookmark?'),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(ctx, false),
+                                            child: const Text('Cancel'),
+                                          ),
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(ctx, true),
+                                            child: const Text('Delete'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+
+                                    if (shouldDelete == true) {
+                                      _deleteBookmark(b['id']);
+                                    }
+                                  },
                                 ),
                                 onTap: () {
                                   // Example: context.push('/devotionalDetail', extra: b);
