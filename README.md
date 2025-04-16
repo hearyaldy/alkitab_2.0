@@ -8,6 +8,16 @@ A fully cross-platform (Android, iOS, Web, Desktop) Bible application built usin
 - Add personal notes to any verse
 - User authentication via Supabase
 - Daily devotional reading support
+- Save devotional notes to Supabase
+- Reading plan tracking
+- Offline access and sync support
+- Multi-platform (Android, iOS, Web, Desktop)
+- Custom theming and font support
+- Read the full Bible with structured navigation
+- Highlight and bookmark verses
+- Add personal notes to any verse
+- User authentication via Supabase
+- Daily devotional reading support
 - Reading plan tracking
 - Offline access and sync support
 - Multi-platform (Android, iOS, Web, Desktop)
@@ -42,6 +52,13 @@ lib/
 │   └── ...
 │
 ├── screens/               # Application UI split by features
+│   ├── auth/              # Login, Register, Reset Password
+│   ├── bible/             # Bible reader and verse views
+│   ├── devotional/        # Devotional reading and note-taking
+│   ├── profile/           # Profile and editing
+│   ├── settings/          # Settings and preferences
+│   ├── tabs/              # Tab navigation views
+│   └── ...               # Application UI split by features
 │   ├── auth/              # Login, Register, Reset Password
 │   ├── bible/             # Bible reader and verse views
 │   ├── profile/           # Profile and editing
