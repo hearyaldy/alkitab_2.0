@@ -30,6 +30,7 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
   double _fontSize = 16.0;
   String _currentVersion = 'ABB';
   late Future<List<BibleVerse>> _versesFuture;
+  List<BibleVerse> _searchResults = [];
   String _footerText = '';
   final FlutterTts _tts = FlutterTts();
   bool _isSpeaking = false;
@@ -117,11 +118,17 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
   }
 
   Future<void> _speakChapter(List<BibleVerse> verses) async {
-    final text = verses.map((v) => '${v.verseNumber}. ${v.text}').join(' ');
-    await _tts.setLanguage('id-ID');
-    await _tts.setSpeechRate(0.5);
-    setState(() => _isSpeaking = true);
-    await _tts.speak(text);
+    try {
+      final text = verses.map((v) => '${v.verseNumber}. ${v.text}').join(' ');
+      await _tts.setLanguage('id-ID');
+      await _tts.setSpeechRate(0.5);
+      setState(() => _isSpeaking = true);
+      await _tts.speak(text);
+    } catch (e) {
+      debugPrint('TTS Error: $e');
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('TTS Error: $e')));
+    }
   }
 
   Future<void> _stopSpeaking() async {
@@ -183,6 +190,7 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
               setState(() {
                 _currentChapter = chapter;
                 _versesFuture = _fetchVerses();
+                _searchResults = [];
               });
             },
             child: Card(
@@ -206,6 +214,42 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
           );
         },
       ),
+    );
+  }
+
+  void _showSearchDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final controller = TextEditingController();
+        return AlertDialog(
+          title: const Text('Cari Ayat'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(hintText: 'Masukkan kata kunci'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Batal'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final keyword = controller.text.toLowerCase();
+                final verses = await _versesFuture;
+                setState(() {
+                  _searchResults = verses
+                      .where((v) => v.text.toLowerCase().contains(keyword))
+                      .toList();
+                });
+                Navigator.pop(context);
+              },
+              child: const Text('Cari'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -234,9 +278,7 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {},
-          ),
+              icon: const Icon(Icons.search), onPressed: _showSearchDialog),
           IconButton(
             icon: const Icon(Icons.remove),
             onPressed: () =>
@@ -271,6 +313,9 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
           }
 
           final verses = snapshot.data!;
+          final contentList =
+              _searchResults.isNotEmpty ? _searchResults : verses;
+
           return Column(
             children: [
               Container(
@@ -282,9 +327,7 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                   children: [
                     Text(bookName,
                         style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        )),
+                            fontSize: 20, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 4),
                     Text('Pasal $_currentChapter',
                         style: const TextStyle(
@@ -295,9 +338,9 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
               Expanded(
                 child: ListView.builder(
                   controller: _scrollController,
-                  itemCount: verses.length,
+                  itemCount: contentList.length,
                   itemBuilder: (context, index) =>
-                      _buildVerseItem(verses[index]),
+                      _buildVerseItem(contentList[index]),
                 ),
               ),
               if (_footerText.isNotEmpty)
