@@ -5,7 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:alkitab_2_0/constants/bible_data.dart';
 
 class HomeTab extends StatefulWidget {
   const HomeTab({super.key});
@@ -63,26 +62,14 @@ class _HomeTabState extends State<HomeTab> {
 
   Future<void> _loadReadingHistory() async {
     final prefs = await SharedPreferences.getInstance();
-    final history = prefs.getStringList('last_readings') ?? [];
-
-    final List<Map<String, dynamic>> parsed = [];
-
-    for (final entry in history) {
-      final data = json.decode(entry) as Map<String, dynamic>;
-      final bookId = data['bookId'];
-      final chapterId = data['chapterId'];
-      final bookName = getBookName(bookId);
-      final progress = prefs.getDouble('progress_$bookId') ?? 0.0;
-
-      parsed.add({
-        'bookId': bookId,
-        'chapterId': chapterId,
-        'bookName': bookName,
-        'progress': progress,
-      });
-    }
-
-    setState(() => _recentReadings = parsed.take(5).toList());
+    final data = prefs.getStringList('last_readings') ?? [];
+    final List<Map<String, dynamic>> parsed = data
+        .map((e) => json.decode(e) as Map<String, dynamic>)
+        .toList()
+        .reversed
+        .take(5)
+        .toList();
+    setState(() => _recentReadings = parsed);
   }
 
   void _showDevotionalDetails(Map<String, dynamic> devo) {
@@ -165,13 +152,13 @@ class _HomeTabState extends State<HomeTab> {
                         children: [
                           Text(formattedDate,
                               style: const TextStyle(
-                                  fontSize: 08, color: Colors.white70)),
+                                  fontSize: 8, color: Colors.white70)),
                           const Text(' | ',
                               style: TextStyle(
-                                  fontSize: 08, color: Colors.white70)),
+                                  fontSize: 8, color: Colors.white70)),
                           Text(dayName,
                               style: const TextStyle(
-                                  fontSize: 08, color: Colors.white70)),
+                                  fontSize: 8, color: Colors.white70)),
                         ],
                       ),
                     ],
@@ -197,7 +184,7 @@ class _HomeTabState extends State<HomeTab> {
                       const SizedBox(height: 4),
                       Text("Welcome, $firstName!",
                           style: const TextStyle(
-                              fontSize: 08, color: Colors.white)),
+                              fontSize: 8, color: Colors.white)),
                     ],
                   ),
                 ),
@@ -224,120 +211,214 @@ class _HomeTabState extends State<HomeTab> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Card(
-                        elevation: 4,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        color: Theme.of(context).colorScheme.surfaceVariant,
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(Icons.wb_sunny,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .primary),
-                                  const SizedBox(width: 8),
-                                  const Text('Verse of the Day',
-                                      style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold)),
-                                  const Spacer(),
-                                  IconButton(
-                                    icon: const Icon(Icons.share),
-                                    tooltip: 'Share verse',
-                                    onPressed: () {
-                                      final verse =
-                                          _todayDevo!['verse_text'] ?? '';
-                                      final reference =
-                                          _todayDevo!['verse_reference'] ?? '';
-                                      final content =
-                                          '"$verse"\n\n📖 $reference';
-                                      Share.share(content,
-                                          subject: 'Verse of the Day');
-                                    },
-                                  ),
-                                ],
-                              ),
-                              const Divider(),
-                              const SizedBox(height: 8),
-                              Text(
-                                '"${_todayDevo!['verse_text']}"',
-                                style: const TextStyle(
-                                    fontSize: 16, fontStyle: FontStyle.italic),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                _todayDevo!['verse_reference'] ?? '',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                      _verseOfDayCard(),
                       const SizedBox(height: 24),
-                      const Text('Continue Reading',
-                          style: TextStyle(
-                              fontSize: 20, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 12),
-                      ..._recentReadings.map((entry) {
-                        final book = entry['bookName'] ?? 'Unknown';
-                        final bookId = entry['bookId'];
-                        final chapter = entry['chapterId'];
-                        final progress = (entry['progress'] ?? 0.0) as double;
-                        return Card(
-                          elevation: 2,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8)),
-                          child: ListTile(
-                            leading: const Icon(Icons.bookmark),
-                            title: Text('$book Pasal $chapter'),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('${(progress * 100).round()}% dibaca'),
-                                const SizedBox(height: 4),
-                                LinearProgressIndicator(value: progress),
-                              ],
-                            ),
-                            onTap: () {
-                              context.go(
-                                  '/bible-reader?bookId=$bookId&chapterId=$chapter');
-                            },
-                          ),
-                        );
-                      }),
+                      _continueReadingSection(),
                       const SizedBox(height: 24),
-                      const Text('Daily Devotionals',
-                          style: TextStyle(
-                              fontSize: 20, fontWeight: FontWeight.bold)),
+                      _devotionalSection(),
+                      const SizedBox(height: 24),
+                      _sectionHeader(context, 'Reading Plans', onSeeAll: () {}),
                       const SizedBox(height: 12),
-                      ..._devotionals
-                          .where((d) => d != _todayDevo)
-                          .take(2)
-                          .map((dev) => Card(
-                                elevation: 2,
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8)),
-                                child: ListTile(
-                                  title: Text(dev['title'] ?? 'Untitled'),
-                                  subtitle: Text(dev['verse_reference'] ?? ''),
-                                  trailing: const Text('Earlier'),
-                                  onTap: () => _showDevotionalDetails(dev),
-                                ),
-                              )),
+                      _readingPlansList(),
                     ],
                   ),
                 ),
         ),
       ],
+    );
+  }
+
+  Widget _verseOfDayCard() {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: Theme.of(context).colorScheme.surfaceVariant,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.wb_sunny,
+                    color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                const Text('Verse of the Day',
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.share),
+                  tooltip: 'Share verse',
+                  onPressed: () {
+                    final verse = _todayDevo!['verse_text'] ?? '';
+                    final reference = _todayDevo!['verse_reference'] ?? '';
+                    final content = '"$verse"\n\n📖 $reference';
+                    Share.share(content, subject: 'Verse of the Day');
+                  },
+                ),
+              ],
+            ),
+            const Divider(),
+            const SizedBox(height: 8),
+            Text('"${_todayDevo!['verse_text']}"',
+                style:
+                    const TextStyle(fontSize: 16, fontStyle: FontStyle.italic)),
+            const SizedBox(height: 8),
+            Text(
+              _todayDevo!['verse_reference'] ?? '',
+              style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _continueReadingSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Continue Reading',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        ..._recentReadings.map((entry) {
+          final book = entry['bookId'] ?? 'Unknown';
+          final chapter = entry['chapterId'] ?? 1;
+          final bookName = entry['bookName'] ?? book;
+          final progress = (entry['progress'] ?? 0.0) as double;
+          return Card(
+            elevation: 2,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            child: ListTile(
+              leading: const Icon(Icons.bookmark),
+              title: Text('$bookName Chapter $chapter'),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('${(progress * 100).round()}% read'),
+                  const SizedBox(height: 4),
+                  LinearProgressIndicator(value: progress),
+                ],
+              ),
+              onTap: () =>
+                  context.go('/bible-reader?bookId=$book&chapterId=$chapter'),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _devotionalSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Daily Devotionals',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        ..._devotionals.where((d) => d != _todayDevo).take(2).map((dev) => Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+              child: ListTile(
+                title: Text(dev['title'] ?? 'Untitled'),
+                subtitle: Text(dev['verse_reference'] ?? ''),
+                trailing: const Text('Earlier'),
+                onTap: () => _showDevotionalDetails(dev),
+              ),
+            )),
+      ],
+    );
+  }
+
+  Widget _sectionHeader(BuildContext context, String title,
+      {VoidCallback? onSeeAll}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(title,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+        TextButton(onPressed: onSeeAll, child: const Text('See All')),
+      ],
+    );
+  }
+
+  Widget _readingPlansList() {
+    return SizedBox(
+      height: 180,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          _buildReadingPlanCard('New Testament in 90 Days', '90 days',
+              '12% Complete', Colors.blue),
+          _buildReadingPlanCard(
+              'Wisdom Literature', '30 days', 'Not started', Colors.green),
+          _buildReadingPlanCard(
+              'Life of Jesus', '21 days', 'Not started', Colors.purple),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReadingPlanCard(
+      String title, String duration, String progress, Color color) {
+    return Container(
+      width: 160,
+      margin: const EdgeInsets.only(right: 16),
+      child: Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 3,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              height: 8,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(12),
+                    topRight: Radius.circular(12)),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 16),
+                      maxLines: 2),
+                  const SizedBox(height: 4),
+                  Text(duration,
+                      style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                  const SizedBox(height: 4),
+                  Text(progress,
+                      style: TextStyle(
+                          color: progress.contains('Not')
+                              ? Colors.grey
+                              : Colors.green,
+                          fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 2),
+                  progress.contains('Not')
+                      ? ElevatedButton(
+                          onPressed: () {},
+                          style: ElevatedButton.styleFrom(
+                              minimumSize: const Size(double.infinity, 30),
+                              padding: EdgeInsets.zero),
+                          child: const Text('Start'),
+                        )
+                      : const LinearProgressIndicator(value: 0.12),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
