@@ -5,7 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import 'dart:convert';
 
 class BookmarksScreen extends StatefulWidget {
-  const BookmarksScreen({Key? key}) : super(key: key);
+  const BookmarksScreen({super.key});
 
   @override
   State<BookmarksScreen> createState() => _BookmarksScreenState();
@@ -69,11 +69,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
 
     debugPrint("Bookmarks response: \$response");
 
-    if (response is List) {
-      return response.map((e) => Map<String, dynamic>.from(e)).toList();
-    } else {
-      throw Exception("Invalid response format");
-    }
+    return response.map((e) => Map<String, dynamic>.from(e)).toList();
   }
 
   Future<void> _deleteBookmark(dynamic bookmarkId) async {
@@ -95,7 +91,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Bookmark deleted")),
       );
-    } catch (e, stack) {
+    } catch (e) {
       debugPrint('Delete error: \$e\n\$stack');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Failed to delete bookmark: \$e")),

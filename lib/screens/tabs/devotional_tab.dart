@@ -8,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
 
 class DevotionalTab extends StatefulWidget {
-  const DevotionalTab({Key? key}) : super(key: key);
+  const DevotionalTab({super.key});
 
   @override
   State<DevotionalTab> createState() => _DevotionalTabState();
@@ -21,7 +21,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
   List<dynamic> _allDevotionals = [];
   Map<String, dynamic>? _todayDevotional;
 
-  int _readingStreak = 3;
+  final int _readingStreak = 3;
 
   final TextEditingController _notesController = TextEditingController();
 
@@ -320,7 +320,7 @@ $text
                   ),
                   onTap: () => _showDevotionalDetails(dev),
                 );
-              }).toList(),
+              }),
             ]
           ]),
         ),

@@ -208,5 +208,8 @@ const Map<String, int> chapterCountMap = {
 };
 
 int getBookIndex(String bookId) => bookIndexMap[bookId] ?? 1;
-int getMaxChapters(String bookId) => chapterCountMap[bookId] ?? 1;
 String getBookName(String bookId) => bookNameMap[bookId] ?? bookId;
+int getMaxChapters(String bookId) => chapterCountMap[bookId] ?? 1;
+
+// ✅ Alias to fix `getChapterCount` error in BibleReaderScreen
+int getChapterCount(String bookId) => getMaxChapters(bookId);
