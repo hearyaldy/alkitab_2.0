@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:alkitab_2_0/constants/bible_data.dart';
 
 class HomeTab extends StatefulWidget {
   const HomeTab({super.key});
@@ -17,11 +18,13 @@ class _HomeTabState extends State<HomeTab> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _devotionals = [];
   Map<String, dynamic>? _todayDevo;
+  List<Map<String, dynamic>> _recentReadings = [];
 
   @override
   void initState() {
     super.initState();
     _loadDevotionals();
+    _loadReadingHistory();
   }
 
   Future<void> _loadDevotionals() async {
@@ -58,6 +61,30 @@ class _HomeTabState extends State<HomeTab> {
     return list[dayIndex];
   }
 
+  Future<void> _loadReadingHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final history = prefs.getStringList('last_readings') ?? [];
+
+    final List<Map<String, dynamic>> parsed = [];
+
+    for (final entry in history) {
+      final data = json.decode(entry) as Map<String, dynamic>;
+      final bookId = data['bookId'];
+      final chapterId = data['chapterId'];
+      final bookName = getBookName(bookId);
+      final progress = prefs.getDouble('progress_$bookId') ?? 0.0;
+
+      parsed.add({
+        'bookId': bookId,
+        'chapterId': chapterId,
+        'bookName': bookName,
+        'progress': progress,
+      });
+    }
+
+    setState(() => _recentReadings = parsed.take(5).toList());
+  }
+
   void _showDevotionalDetails(Map<String, dynamic> devo) {
     showModalBottomSheet(
       context: context,
@@ -74,27 +101,19 @@ class _HomeTabState extends State<HomeTab> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(devo['title'] ?? 'Untitled',
-                  style: Theme.of(context).textTheme.titleLarge),
+                  style: const TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               Text(devo['verse_reference'] ?? '',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(fontStyle: FontStyle.italic)),
+                  style: const TextStyle(fontStyle: FontStyle.italic)),
               const SizedBox(height: 16),
               Text(devo['devotional_text'] ?? '',
-                  style: Theme.of(context).textTheme.bodyLarge),
+                  style: const TextStyle(height: 1.5)),
               const SizedBox(height: 16),
-              Text('Prayer:',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleSmall
-                      ?.copyWith(fontWeight: FontWeight.bold)),
+              const Text('Prayer:',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               Text(devo['prayer'] ?? '',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(fontStyle: FontStyle.italic)),
+                  style: const TextStyle(fontStyle: FontStyle.italic)),
               const SizedBox(height: 24),
               Align(
                 alignment: Alignment.centerRight,
@@ -110,18 +129,6 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  Widget _buildShimmerCard({double height = 140}) {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey[300]!,
-      highlightColor: Colors.grey[100]!,
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Container(width: double.infinity, height: height),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
@@ -131,6 +138,7 @@ class _HomeTabState extends State<HomeTab> {
     final displayName =
         user?.userMetadata?['full_name'] ?? user?.email ?? "Guest";
     final firstName = displayName.split(" ").first;
+    final profileUrl = user?.userMetadata?['profile_url'];
 
     return CustomScrollView(
       slivers: [
@@ -147,11 +155,11 @@ class _HomeTabState extends State<HomeTab> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Alkitab 2.0',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleSmall
-                              ?.copyWith(color: Colors.white)),
+                      const Text('Alkitab 2.0',
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white)),
                       const SizedBox(height: 2),
                       Row(
                         children: [
@@ -176,10 +184,16 @@ class _HomeTabState extends State<HomeTab> {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       CircleAvatar(
-                          radius: 16,
-                          backgroundColor: Colors.white,
-                          child: const Icon(Icons.person,
-                              size: 16, color: Colors.indigo)),
+                        radius: 16,
+                        backgroundImage: profileUrl != null
+                            ? NetworkImage(profileUrl)
+                            : null,
+                        backgroundColor: Colors.white,
+                        child: profileUrl == null
+                            ? const Icon(Icons.person,
+                                size: 16, color: Colors.indigo)
+                            : null,
+                      ),
                       const SizedBox(height: 4),
                       Text("Welcome, $firstName!",
                           style: const TextStyle(
@@ -200,212 +214,130 @@ class _HomeTabState extends State<HomeTab> {
           ),
         ),
         SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: _isLoading
-                ? Column(
-                    children: [
-                      _buildShimmerCard(height: 160),
-                      const SizedBox(height: 24),
-                      _buildShimmerCard(height: 80),
-                      const SizedBox(height: 16),
-                      _buildShimmerCard(height: 80),
-                    ],
-                  )
-                : Column(
+          child: _isLoading || _todayDevo == null
+              ? const Center(
+                  child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: CircularProgressIndicator()))
+              : Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _todayDevo != null
-                          ? _buildVerseOfTheDayCard(context)
-                          : const SizedBox.shrink(),
+                      Card(
+                        elevation: 4,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        color: Theme.of(context).colorScheme.surfaceVariant,
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.wb_sunny,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .primary),
+                                  const SizedBox(width: 8),
+                                  const Text('Verse of the Day',
+                                      style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold)),
+                                  const Spacer(),
+                                  IconButton(
+                                    icon: const Icon(Icons.share),
+                                    tooltip: 'Share verse',
+                                    onPressed: () {
+                                      final verse =
+                                          _todayDevo!['verse_text'] ?? '';
+                                      final reference =
+                                          _todayDevo!['verse_reference'] ?? '';
+                                      final content =
+                                          '"$verse"\n\n📖 $reference';
+                                      Share.share(content,
+                                          subject: 'Verse of the Day');
+                                    },
+                                  ),
+                                ],
+                              ),
+                              const Divider(),
+                              const SizedBox(height: 8),
+                              Text(
+                                '"${_todayDevo!['verse_text']}"',
+                                style: const TextStyle(
+                                    fontSize: 16, fontStyle: FontStyle.italic),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _todayDevo!['verse_reference'] ?? '',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 24),
-                      _buildDevotionalList(context),
+                      const Text('Continue Reading',
+                          style: TextStyle(
+                              fontSize: 20, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 12),
+                      ..._recentReadings.map((entry) {
+                        final book = entry['bookName'] ?? 'Unknown';
+                        final bookId = entry['bookId'];
+                        final chapter = entry['chapterId'];
+                        final progress = (entry['progress'] ?? 0.0) as double;
+                        return Card(
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                          child: ListTile(
+                            leading: const Icon(Icons.bookmark),
+                            title: Text('$book Pasal $chapter'),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('${(progress * 100).round()}% dibaca'),
+                                const SizedBox(height: 4),
+                                LinearProgressIndicator(value: progress),
+                              ],
+                            ),
+                            onTap: () {
+                              context.go(
+                                  '/bible-reader?bookId=$bookId&chapterId=$chapter');
+                            },
+                          ),
+                        );
+                      }),
                       const SizedBox(height: 24),
-                      _buildReadingPlanList(context),
+                      const Text('Daily Devotionals',
+                          style: TextStyle(
+                              fontSize: 20, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 12),
+                      ..._devotionals
+                          .where((d) => d != _todayDevo)
+                          .take(2)
+                          .map((dev) => Card(
+                                elevation: 2,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8)),
+                                child: ListTile(
+                                  title: Text(dev['title'] ?? 'Untitled'),
+                                  subtitle: Text(dev['verse_reference'] ?? ''),
+                                  trailing: const Text('Earlier'),
+                                  onTap: () => _showDevotionalDetails(dev),
+                                ),
+                              )),
                     ],
                   ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildVerseOfTheDayCard(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      color: Theme.of(context).colorScheme.surface,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.wb_sunny,
-                    color: Theme.of(context).colorScheme.primary),
-                const SizedBox(width: 8),
-                Text('Verse of the Day',
-                    style: textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.primary)),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.share),
-                  tooltip: 'Share verse',
-                  onPressed: () {
-                    final verse = _todayDevo!['verse_text'] ?? '';
-                    final reference = _todayDevo!['verse_reference'] ?? '';
-                    final content = '"$verse"\n\n📖 $reference';
-                    Share.share(content, subject: 'Verse of the Day');
-                  },
                 ),
-              ],
-            ),
-            const Divider(),
-            const SizedBox(height: 8),
-            Text(
-              '"${_todayDevo!['verse_text']}"',
-              style: textTheme.bodyLarge?.copyWith(fontStyle: FontStyle.italic),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _todayDevo!['verse_reference'] ?? '',
-              style: textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDevotionalList(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Daily Devotionals',
-            style: theme.textTheme.titleLarge
-                ?.copyWith(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 12),
-        ..._devotionals.where((d) => d != _todayDevo).take(2).map((dev) => Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-              child: ListTile(
-                title: Text(dev['title'] ?? 'Untitled'),
-                subtitle: Text(dev['verse_reference'] ?? ''),
-                trailing: const Text('Earlier'),
-                onTap: () => _showDevotionalDetails(dev),
-              ),
-            )),
-      ],
-    );
-  }
-
-  Widget _buildReadingPlanList(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionHeader(context, 'Reading Plans'),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 180,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: [
-              _buildReadingPlanCard(context, 'New Testament in 90 Days',
-                  '90 days', '12% Complete', Colors.blue),
-              _buildReadingPlanCard(context, 'Wisdom Literature', '30 days',
-                  'Not started', Colors.green),
-              _buildReadingPlanCard(context, 'Life of Jesus', '21 days',
-                  'Not started', Colors.purple),
-            ],
-          ),
         ),
       ],
-    );
-  }
-
-  Widget _sectionHeader(BuildContext context, String title,
-      {VoidCallback? onSeeAll}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(title,
-            style: Theme.of(context)
-                .textTheme
-                .titleLarge
-                ?.copyWith(fontWeight: FontWeight.bold)),
-        TextButton(onPressed: onSeeAll ?? () {}, child: const Text('See All')),
-      ],
-    );
-  }
-
-  Widget _buildReadingPlanCard(BuildContext context, String title,
-      String duration, String progress, Color color) {
-    final theme = Theme.of(context);
-    return Container(
-      width: 160,
-      margin: const EdgeInsets.only(right: 16),
-      child: Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        elevation: 3,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              height: 8,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(12)),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title,
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.bold),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 4),
-                  Text(duration,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: Colors.grey[600])),
-                  const SizedBox(height: 4),
-                  Text(
-                    progress,
-                    style: TextStyle(
-                      color:
-                          progress.contains('Not') ? Colors.grey : Colors.green,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  progress.contains('Not')
-                      ? ElevatedButton(
-                          onPressed: () {},
-                          style: ElevatedButton.styleFrom(
-                            minimumSize: const Size(double.infinity, 30),
-                            padding: EdgeInsets.zero,
-                          ),
-                          child: const Text('Start'),
-                        )
-                      : const LinearProgressIndicator(value: 0.12),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

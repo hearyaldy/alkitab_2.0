@@ -1,51 +1,40 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class ProfileTab extends StatefulWidget {
+import '../../providers/user_profile_provider.dart';
+
+class ProfileTab extends ConsumerStatefulWidget {
   const ProfileTab({super.key});
 
   @override
-  _ProfileTabState createState() => _ProfileTabState();
+  ConsumerState<ProfileTab> createState() => _ProfileTabState();
 }
 
-class _ProfileTabState extends State<ProfileTab> {
+class _ProfileTabState extends ConsumerState<ProfileTab> {
   final _formKey = GlobalKey<FormState>();
-
-  // Controllers for display name and email.
   late TextEditingController _nameController;
   late TextEditingController _emailController;
-
-  // Track last login / last password change for user metadata.
   String _lastLogin = 'Not available';
   String _lastPasswordChange = 'Not available';
-
-  // Local file reference (if needed for other logic), but we’ll rely on the server URL for display.
   File? _profileImage;
-
-  // The public URL of the uploaded profile photo from Supabase, if any.
   String? _photoUrl;
 
-  // Supabase user object
   final user = Supabase.instance.client.auth.currentUser;
 
   @override
   void initState() {
     super.initState();
-
-    // Load existing metadata so that we can show the current name & photo URL.
     final userMeta = user?.userMetadata;
     _nameController = TextEditingController(text: userMeta?['full_name'] ?? '');
     _emailController = TextEditingController(text: user?.email ?? '');
     _photoUrl = userMeta?['profile_url'];
-
-    // Additional metadata examples
     _lastLogin = user?.lastSignInAt ?? 'Not available';
-    _lastPasswordChange = 'Not available'; // or retrieve from your data source
   }
 
   @override
@@ -55,20 +44,17 @@ class _ProfileTabState extends State<ProfileTab> {
     super.dispose();
   }
 
-  // Compress the image before uploading
   Future<File?> compressImage(File file) async {
     final targetPath =
         '${file.parent.path}/${DateTime.now().millisecondsSinceEpoch}_compressed.jpg';
-    final dynamic result = await FlutterImageCompress.compressAndGetFile(
+    final result = await FlutterImageCompress.compressAndGetFile(
       file.absolute.path,
       targetPath,
       quality: 70,
     );
-    if (result == null) return null;
-    return File(result.path);
+    return result == null ? null : File(result.path);
   }
 
-  // Let the user pick an image from their gallery
   Future<void> _pickProfileImage() async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
@@ -76,71 +62,59 @@ class _ProfileTabState extends State<ProfileTab> {
       final file = File(pickedFile.path);
       final compressed = await compressImage(file);
       if (compressed != null) {
-        // 1) Upload the file to Supabase
-        final userId = Supabase.instance.client.auth.currentUser!.id;
+        final userId = user!.id;
         final publicUrl = await _uploadProfilePhoto(compressed, userId);
-
-        // 2) If upload is successful, store the URL in the user's metadata
         if (publicUrl != null) {
           await Supabase.instance.client.auth.updateUser(
-            UserAttributes(
-              data: {'profile_url': publicUrl},
-            ),
+            UserAttributes(data: {'profile_url': publicUrl}),
           );
-
-          // 3) Update the local UI to show the new remote image
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('profile_photo', publicUrl);
+          ref.read(profilePhotoProvider.notifier).state = publicUrl;
           setState(() {
-            _profileImage = null; // No longer relying on the local file
-            _photoUrl = publicUrl; // Display the server image
+            _profileImage = null;
+            _photoUrl = publicUrl;
           });
         }
       }
     }
   }
 
-  // Upload the profile image to your Supabase bucket and return the public URL
   Future<String?> _uploadProfilePhoto(File imageFile, String userId) async {
-    // Use the correct bucket name: "profile-images"
     final fileName = 'profile-images/profile_$userId.jpg';
     try {
       await Supabase.instance.client.storage.from('profile-images').upload(
           fileName, imageFile,
           fileOptions: const FileOptions(upsert: true));
 
-      // Get the public URL for this file
       final publicUrl = Supabase.instance.client.storage
           .from('profile-images')
           .getPublicUrl(fileName);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Profile photo updated.\nURL: $publicUrl')),
-      );
-
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Photo updated.')));
       return publicUrl;
     } catch (e) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Upload error: $e')));
+          .showSnackBar(SnackBar(content: Text('Upload failed: $e')));
       return null;
     }
   }
 
-  // Update user’s display name in metadata
   Future<void> _updateProfile() async {
     if (_formKey.currentState?.validate() ?? false) {
       final newName = _nameController.text.trim();
       try {
         final response = await Supabase.instance.client.auth.updateUser(
           UserAttributes(
-            email: _emailController.text, // Typically read-only
-            data: {'full_name': newName},
-          ),
+              email: _emailController.text, data: {'full_name': newName}),
         );
         if (response.user != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Profile updated successfully.")));
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text("Profile updated.")));
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Profile update failed.")));
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text("Update failed.")));
         }
       } catch (e) {
         ScaffoldMessenger.of(context)
@@ -149,7 +123,6 @@ class _ProfileTabState extends State<ProfileTab> {
     }
   }
 
-  // Confirm logout
   Future<void> _confirmLogout() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -158,31 +131,25 @@ class _ProfileTabState extends State<ProfileTab> {
         content: const Text('Are you sure you want to logout?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Logout'),
-          ),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Logout')),
         ],
       ),
     );
     if (confirm == true) {
       await Supabase.instance.client.auth.signOut();
-      if (mounted) {
-        context.go('/login');
-      }
+      if (mounted) context.go('/login');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // CustomScrollView allows for collapsible header
       body: CustomScrollView(
         slivers: [
-          // SliverAppBar with a background image
           SliverAppBar(
             pinned: true,
             expandedHeight: 160,
@@ -200,18 +167,13 @@ class _ProfileTabState extends State<ProfileTab> {
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Image.asset(
-                    'assets/images/header_image.png', // Change to your header image path
-                    fit: BoxFit.cover,
-                  ),
-                  Container(
-                    color: Colors.black.withOpacity(0.54),
-                  ),
+                  Image.asset('assets/images/header_image.png',
+                      fit: BoxFit.cover),
+                  Container(color: Colors.black.withOpacity(0.54)),
                 ],
               ),
             ),
           ),
-          // Main content area
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
@@ -220,7 +182,6 @@ class _ProfileTabState extends State<ProfileTab> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Tapping the avatar picks a new photo
                     Center(
                       child: GestureDetector(
                         onTap: _pickProfileImage,
@@ -238,7 +199,6 @@ class _ProfileTabState extends State<ProfileTab> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    // Display Name field
                     TextFormField(
                       controller: _nameController,
                       decoration: const InputDecoration(
@@ -246,15 +206,12 @@ class _ProfileTabState extends State<ProfileTab> {
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.person),
                       ),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Please enter your name';
-                        }
-                        return null;
-                      },
+                      validator: (value) =>
+                          (value == null || value.trim().isEmpty)
+                              ? 'Please enter name'
+                              : null,
                     ),
                     const SizedBox(height: 16),
-                    // Email field (read-only)
                     TextFormField(
                       controller: _emailController,
                       readOnly: true,
@@ -265,7 +222,6 @@ class _ProfileTabState extends State<ProfileTab> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    // Metadata cards
                     Card(
                       elevation: 2,
                       margin: const EdgeInsets.only(bottom: 8),
@@ -282,7 +238,6 @@ class _ProfileTabState extends State<ProfileTab> {
                         subtitle: Text(_lastPasswordChange),
                       ),
                     ),
-                    // Update and Logout buttons
                     ElevatedButton(
                       onPressed: _updateProfile,
                       child: const Text('Update Profile'),
