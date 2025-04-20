@@ -79,12 +79,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
       body: _tabs[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
+        selectedItemColor: theme.colorScheme.primary,
+        unselectedItemColor: theme.disabledColor,
+        backgroundColor: theme.colorScheme.surface,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Utama'),
           BottomNavigationBarItem(icon: Icon(Icons.book), label: 'Alkitab'),
@@ -106,6 +111,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     heroTag: 'bookmark',
                     mini: true,
                     onPressed: _onBookmarkPressed,
+                    tooltip: 'Bookmarks',
                     child: const Icon(Icons.bookmark),
                   ),
                   const SizedBox(height: 8),
@@ -113,6 +119,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     heroTag: 'settings',
                     mini: true,
                     onPressed: _onSettingsPressed,
+                    tooltip: 'Settings',
                     child: const Icon(Icons.settings),
                   ),
                   const SizedBox(height: 8),
@@ -122,6 +129,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           FloatingActionButton(
             heroTag: 'mainMenu',
             onPressed: _toggleFloatingMenu,
+            tooltip: 'Menu',
             child: Icon(_isFloatingMenuOpen ? Icons.close : Icons.menu),
           ),
         ],

@@ -3,33 +3,39 @@ import 'package:flutter/material.dart';
 class AppTheme {
   // Colors
   static const Color primaryColor = Color(0xFF3F51B5); // Indigo
-  static const Color accentColor = Color(0xFF03A9F4);  // Light Blue
-  static const Color errorColor = Color(0xFFB00020);   // Error red
-  
+  static const Color accentColor = Color(0xFF03A9F4); // Light Blue
+  static const Color errorColor = Color(0xFFB00020); // Error red
+
   // Typography
   static const String fontFamily = 'Roboto';
-  
-  // Light theme
+
+  // Light Theme
   static ThemeData get lightTheme {
-    return ThemeData(
+    final base = ThemeData.light();
+    return base.copyWith(
       useMaterial3: true,
       primaryColor: primaryColor,
-      // Apply fontFamily correctly:
-      textTheme: const TextTheme().apply(fontFamily: fontFamily),
+      scaffoldBackgroundColor: Colors.white,
+      textTheme: base.textTheme.apply(
+        fontFamily: fontFamily,
+        bodyColor: Colors.black87,
+        displayColor: Colors.black87,
+      ),
       colorScheme: const ColorScheme.light(
         primary: primaryColor,
         secondary: accentColor,
         error: errorColor,
       ),
       appBarTheme: const AppBarTheme(
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
-        elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 0.5,
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryColor,
           foregroundColor: Colors.white,
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
           minimumSize: const Size(double.infinity, 48),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
@@ -49,13 +55,19 @@ class AppTheme {
       ),
     );
   }
-  
-  // Dark theme
+
+  // Dark Theme
   static ThemeData get darkTheme {
-    return ThemeData.dark().copyWith(
+    final base = ThemeData.dark();
+    return base.copyWith(
+      useMaterial3: true,
       primaryColor: primaryColor,
-      // Apply fontFamily correctly:
-      textTheme: const TextTheme().apply(fontFamily: fontFamily),
+      scaffoldBackgroundColor: Colors.black,
+      textTheme: base.textTheme.apply(
+        fontFamily: fontFamily,
+        bodyColor: Colors.white70,
+        displayColor: Colors.white70,
+      ),
       colorScheme: const ColorScheme.dark(
         primary: primaryColor,
         secondary: accentColor,
@@ -64,12 +76,13 @@ class AppTheme {
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.grey[900],
         foregroundColor: Colors.white,
-        elevation: 0,
+        elevation: 0.5,
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryColor,
           foregroundColor: Colors.white,
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
           minimumSize: const Size(double.infinity, 48),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
