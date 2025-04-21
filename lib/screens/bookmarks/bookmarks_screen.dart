@@ -1,3 +1,5 @@
+// lib/screens/bookmarks/bookmarks_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -11,8 +13,10 @@ class BookmarksScreen extends StatefulWidget {
   State<BookmarksScreen> createState() => _BookmarksScreenState();
 }
 
-class _BookmarksScreenState extends State<BookmarksScreen> {
+class _BookmarksScreenState extends State<BookmarksScreen> with SingleTickerProviderStateMixin {
   bool _isLoadingDevotionals = false;
+  late TabController _tabController;
+  
   Future<void> _loadDevotionals() async {
     setState(() => _isLoadingDevotionals = true);
     try {
@@ -39,7 +43,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
         });
       }
     } catch (e) {
-      debugPrint('Failed to load devotionals: \$e');
+      debugPrint('Failed to load devotionals: $e');
     }
   }
 
@@ -51,15 +55,22 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     _loadDevotionals();
     _bookmarkFuture = fetchBookmarks();
+  }
+  
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<List<Map<String, dynamic>>> fetchBookmarks() async {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) throw Exception("User not authenticated");
 
-    debugPrint("Current user ID: \${user.id}");
+    debugPrint("Current user ID: ${user.id}");
 
     final response = await Supabase.instance.client
         .from('user_bookmarks')
@@ -67,7 +78,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
         .eq('user_id', user.id)
         .order('created_at', ascending: false);
 
-    debugPrint("Bookmarks response: \$response");
+    debugPrint("Bookmarks response: $response");
 
     return response.map((e) => Map<String, dynamic>.from(e)).toList();
   }
@@ -75,14 +86,14 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
   Future<void> _deleteBookmark(dynamic bookmarkId) async {
     try {
       debugPrint(
-          'Raw bookmark id: \$bookmarkId (type: \${bookmarkId.runtimeType})');
+          'Raw bookmark id: $bookmarkId (type: ${bookmarkId.runtimeType})');
 
       final response = await Supabase.instance.client
           .from('user_bookmarks')
           .delete()
           .eq('id', bookmarkId);
 
-      debugPrint('Delete response: \$response');
+      debugPrint('Delete response: $response');
 
       setState(() {
         _bookmarkFuture = fetchBookmarks();
@@ -92,9 +103,9 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
         const SnackBar(content: Text("Bookmark deleted")),
       );
     } catch (e) {
-      debugPrint('Delete error: \$e\n\$stack');
+      debugPrint('Delete error: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Failed to delete bookmark: \$e")),
+        SnackBar(content: Text("Failed to delete bookmark: $e")),
       );
     }
   }
@@ -145,9 +156,9 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                   Positioned(
                     left: 16,
                     bottom: 16,
-                    child: Text(
+                    child: const Text(
                       'My Bookmarks',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
@@ -168,212 +179,39 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                         }
                       },
                     ),
-                  )
+                  ),
+                  // Add tabs at the bottom of the header
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      color: Colors.black.withOpacity(0.5),
+                      child: TabBar(
+                        controller: _tabController,
+                        tabs: const [
+                          Tab(text: 'Devotionals'),
+                          Tab(text: 'Bible Verses'),
+                        ],
+                        indicatorColor: Colors.white,
+                        labelColor: Colors.white,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
             Expanded(
-              child: FutureBuilder<List<Map<String, dynamic>>>(
-                future: _bookmarkFuture,
-                builder: (context, snapshot) {
-                  if (_isLoadingDevotionals ||
-                      snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  } else if (snapshot.hasError) {
-                    return Center(child: Text("Error: \${snapshot.error}"));
-                  } else if (snapshot.data!.isEmpty) {
-                    return const Center(child: Text("No bookmarks found."));
-                  } else {
-                    final bookmarks = snapshot.data!;
-                    return RefreshIndicator(
-                      onRefresh: () async {
-                        setState(() {
-                          _bookmarkFuture = fetchBookmarks();
-                        });
-                      },
-                      child: ListView.builder(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        itemCount: bookmarks.length,
-                        itemBuilder: (context, index) {
-                          final b = bookmarks[index];
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 8),
-                            child: Card(
-                              elevation: 2,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: ListTile(
-                                title: Text(
-                                  b['title'] ?? 'No Title',
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: _themeColor,
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  b['verse_reference'] ?? '',
-                                  style: TextStyle(color: _themeColor.shade700),
-                                ),
-                                trailing: IconButton(
-                                  icon: const Icon(Icons.delete),
-                                  tooltip: 'Delete Bookmark',
-                                  onPressed: () async {
-                                    final shouldDelete = await showDialog<bool>(
-                                      context: context,
-                                      builder: (ctx) => AlertDialog(
-                                        title: const Text('Delete Bookmark'),
-                                        content: const Text(
-                                            'Are you sure you want to delete this bookmark?'),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.pop(ctx, false),
-                                            child: const Text('Cancel'),
-                                          ),
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.pop(ctx, true),
-                                            child: const Text('Delete'),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-
-                                    if (shouldDelete == true) {
-                                      _deleteBookmark(b['id']);
-                                    }
-                                  },
-                                ),
-                                onTap: () {
-                                  final devotional = _allDevotionals.firstWhere(
-                                    (dev) =>
-                                        dev['verse_reference'] ==
-                                        b['verse_reference'],
-                                    orElse: () => {},
-                                  );
-
-                                  if (devotional.isEmpty) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                          content: Text(
-                                              'Devotional content not found.')),
-                                    );
-                                    return;
-                                  }
-
-                                  showModalBottomSheet(
-                                    context: context,
-                                    isScrollControlled: true,
-                                    shape: const RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.vertical(
-                                          top: Radius.circular(16)),
-                                    ),
-                                    builder: (ctx) {
-                                      return DraggableScrollableSheet(
-                                        expand: false,
-                                        builder: (context, scrollController) {
-                                          return SingleChildScrollView(
-                                            controller: scrollController,
-                                            padding: const EdgeInsets.all(16),
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  b['title'] ?? 'Untitled',
-                                                  style: const TextStyle(
-                                                      fontSize: 20,
-                                                      fontWeight:
-                                                          FontWeight.bold),
-                                                ),
-                                                const SizedBox(height: 8),
-                                                Text(
-                                                  b['verse_reference'] ?? '',
-                                                  style: const TextStyle(
-                                                      fontStyle:
-                                                          FontStyle.italic),
-                                                ),
-                                                const SizedBox(height: 16),
-                                                Text(
-                                                  devotional[
-                                                          'devotional_text'] ??
-                                                      '',
-                                                  style: const TextStyle(
-                                                      height: 1.5),
-                                                ),
-                                                const SizedBox(height: 16),
-                                                const Text('Prayer:',
-                                                    style: TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.bold)),
-                                                Text(
-                                                  devotional['prayer'] ?? '',
-                                                  style: const TextStyle(
-                                                      fontStyle:
-                                                          FontStyle.italic),
-                                                ),
-                                                const SizedBox(height: 24),
-                                                Align(
-                                                  alignment:
-                                                      Alignment.centerRight,
-                                                  child: TextButton(
-                                                    onPressed: () =>
-                                                        Navigator.pop(context),
-                                                    child: const Text('Close'),
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 8),
-                                                Align(
-                                                  alignment:
-                                                      Alignment.centerRight,
-                                                  child: TextButton.icon(
-                                                    onPressed: () {
-                                                      final title = b[
-                                                              'title'] ??
-                                                          'Untitled Devotional';
-                                                      final verse =
-                                                          b['verse_reference'] ??
-                                                              '';
-                                                      final text = devotional[
-                                                              'devotional_text'] ??
-                                                          '';
-                                                      final prayer = devotional[
-                                                              'prayer'] ??
-                                                          '';
-                                                      final content =
-                                                          '$title\n$verse\n\n$text\n\n🙏 $prayer';
-                                                      Share.share(content,
-                                                          subject: title);
-                                                    },
-                                                    icon:
-                                                        const Icon(Icons.share),
-                                                    label: const Text('Share'),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          );
-                                        },
-                                      );
-                                    },
-                                  );
-                                },
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    );
-                  }
-                },
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  // Devotionals Tab
+                  _buildDevotionalBookmarksList(),
+                  
+                  // Bible Verses Tab
+                  _buildBibleBookmarksList(),
+                ],
               ),
-            )
+            ),
           ],
         ),
-      ),
-    );
-  }
-}

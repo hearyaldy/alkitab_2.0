@@ -2,11 +2,14 @@
 
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:go_router/go_router.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:alkitab_2_0/models/bible_model.dart';
 import 'package:alkitab_2_0/constants/bible_data.dart';
 
@@ -37,6 +40,10 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
   bool _isSpeaking = false;
   Set<String> _bookmarks = {};
   final ScrollController _scrollController = ScrollController();
+
+  // Verse selection state
+  final Set<int> _selectedVerses = {};
+  bool _isSelectionMode = false;
 
   @override
   void initState() {
@@ -135,17 +142,202 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getStringList('bookmarks') ?? [];
     setState(() => _bookmarks = saved.toSet());
+
+    // Also sync with Supabase bookmarks if user is logged in
+    _syncBookmarksWithSupabase();
   }
 
-  Future<void> _toggleBookmark(String key) async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      if (_bookmarks.contains(key)) {
-        _bookmarks.remove(key);
-      } else {
-        _bookmarks.add(key);
+  // Sync local bookmarks with Supabase
+  Future<void> _syncBookmarksWithSupabase() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final response = await Supabase.instance.client
+          .from('user_bookmarks')
+          .select()
+          .eq('user_id', user.id)
+          .eq('type', 'bible');
+
+      if (response != null && response is List) {
+        final Set<String> supabaseBookmarks = {};
+
+        for (final bookmark in response) {
+          final bookId = bookmark['book_id'];
+          final chapterId = bookmark['chapter_id'];
+          final verseId = bookmark['verse_id'];
+
+          if (bookId != null && chapterId != null && verseId != null) {
+            supabaseBookmarks.add('${bookId}_${chapterId}_${verseId}');
+          }
+        }
+
+        // Update local bookmarks to include Supabase bookmarks
+        final prefs = await SharedPreferences.getInstance();
+        setState(() {
+          _bookmarks = supabaseBookmarks;
+        });
+        prefs.setStringList('bookmarks', _bookmarks.toList());
       }
+    } catch (e) {
+      debugPrint('Error syncing bookmarks: $e');
+    }
+  }
+
+  // Toggle bookmark using both local storage and Supabase
+  Future<void> _toggleSupabaseBookmark(String key, BibleVerse verse) async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('You need to be logged in to bookmark verses')),
+      );
+      return;
+    }
+
+    try {
+      // Check if bookmark exists
+      final bookName = getBookName(_currentBookId);
+      final verseReference = '$bookName $_currentChapter:${verse.verseNumber}';
+
+      final existing = await Supabase.instance.client
+          .from('user_bookmarks')
+          .select()
+          .eq('user_id', user.id)
+          .eq('verse_reference', verseReference)
+          .eq('type', 'bible')
+          .maybeSingle();
+
+      if (existing != null) {
+        // Delete existing bookmark
+        await Supabase.instance.client
+            .from('user_bookmarks')
+            .delete()
+            .eq('id', existing['id']);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Bookmark removed')),
+        );
+      } else {
+        // Create new bookmark
+        await Supabase.instance.client.from('user_bookmarks').insert({
+          'user_id': user.id,
+          'title': 'Bible - $verseReference',
+          'verse_reference': verseReference,
+          'verse_text': verse.text,
+          'type': 'bible',
+          'bookmark_type': 'bible_verse',
+          'book_id': _currentBookId,
+          'chapter_id': _currentChapter,
+          'verse_id': verse.verseNumber,
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Bookmark added')),
+        );
+      }
+
+      // Also update local bookmarks for immediate feedback
+      setState(() {
+        if (_bookmarks.contains(key)) {
+          _bookmarks.remove(key);
+        } else {
+          _bookmarks.add(key);
+        }
+      });
+
+      // Update shared preferences for offline access
+      final prefs = await SharedPreferences.getInstance();
       prefs.setStringList('bookmarks', _bookmarks.toList());
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error managing bookmark: $e')),
+      );
+    }
+  }
+
+  // Navigate to the bookmarks screen
+  void _navigateToBookmarksScreen() {
+    context.go('/bookmarks');
+  }
+
+  // Toggle verse selection
+  void _toggleVerseSelection(int verseNumber) {
+    setState(() {
+      if (_selectedVerses.contains(verseNumber)) {
+        _selectedVerses.remove(verseNumber);
+      } else {
+        _selectedVerses.add(verseNumber);
+      }
+      _isSelectionMode = _selectedVerses.isNotEmpty;
+    });
+  }
+
+  // Copy a single verse
+  void _copySingleVerse(BibleVerse verse) {
+    final bookName = getBookName(_currentBookId);
+    final verseText = '${verse.verseNumber}. ${verse.text}';
+
+    Clipboard.setData(ClipboardData(
+      text: '$bookName $_currentChapter\n\n$verseText',
+    ));
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Ayat disalin')),
+    );
+  }
+
+  // Share a single verse
+  void _shareSingleVerse(BibleVerse verse) {
+    final bookName = getBookName(_currentBookId);
+    final verseText = '${verse.verseNumber}. ${verse.text}';
+
+    Share.share(
+      '$bookName $_currentChapter\n\n$verseText\n\n#AlkitabApp',
+    );
+  }
+
+  // Copy selected verses
+  void _copySelectedVerses(List<BibleVerse> verses) {
+    final selectedVerseTexts = verses
+        .where((verse) => _selectedVerses.contains(verse.verseNumber))
+        .map((verse) => '${verse.verseNumber}. ${verse.text}')
+        .join('\n\n');
+
+    final bookName = getBookName(_currentBookId);
+
+    Clipboard.setData(ClipboardData(
+      text: '$bookName $_currentChapter\n\n$selectedVerseTexts',
+    ));
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Ayat disalin')),
+    );
+
+    // Clear selection after copying
+    setState(() {
+      _selectedVerses.clear();
+      _isSelectionMode = false;
+    });
+  }
+
+  // Share selected verses
+  void _shareSelectedVerses(List<BibleVerse> verses) {
+    final selectedVerseTexts = verses
+        .where((verse) => _selectedVerses.contains(verse.verseNumber))
+        .map((verse) => '${verse.verseNumber}. ${verse.text}')
+        .join('\n\n');
+
+    final bookName = getBookName(_currentBookId);
+
+    Share.share(
+      '$bookName $_currentChapter\n\n$selectedVerseTexts\n\n#AlkitabApp',
+    );
+
+    // Clear selection after sharing
+    setState(() {
+      _selectedVerses.clear();
+      _isSelectionMode = false;
     });
   }
 
@@ -165,11 +357,99 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
   Widget _buildVerseItem(BibleVerse verse) {
     final key = '${verse.bookId}_${verse.chapterId}_${verse.verseNumber}';
     final bookmarked = _bookmarks.contains(key);
+    final isSelected = _selectedVerses.contains(verse.verseNumber);
 
     return GestureDetector(
-      onLongPress: () => _toggleBookmark(key),
-      child: Padding(
+      onLongPress: () {
+        if (_isSelectionMode) {
+          _toggleVerseSelection(verse.verseNumber);
+        } else {
+          // Show popup menu for the verse
+          final RenderBox button = context.findRenderObject() as RenderBox;
+          final RenderBox overlay = Navigator.of(context)
+              .overlay!
+              .context
+              .findRenderObject() as RenderBox;
+          final RelativeRect position = RelativeRect.fromRect(
+            Rect.fromPoints(
+              button.localToGlobal(Offset.zero, ancestor: overlay),
+              button.localToGlobal(button.size.bottomRight(Offset.zero),
+                  ancestor: overlay),
+            ),
+            Offset.zero & overlay.size,
+          );
+
+          showMenu(
+            context: context,
+            position: position,
+            items: [
+              PopupMenuItem(
+                value: 'select',
+                child: Row(
+                  children: const [
+                    Icon(Icons.select_all, size: 20),
+                    SizedBox(width: 8),
+                    Text('Pilih Ayat'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'copy',
+                child: Row(
+                  children: const [
+                    Icon(Icons.copy, size: 20),
+                    SizedBox(width: 8),
+                    Text('Salin Ayat'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'share',
+                child: Row(
+                  children: const [
+                    Icon(Icons.share, size: 20),
+                    SizedBox(width: 8),
+                    Text('Bagikan Ayat'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'bookmark',
+                child: Row(
+                  children: [
+                    Icon(
+                      bookmarked ? Icons.bookmark : Icons.bookmark_border,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(bookmarked ? 'Hapus Bookmark' : 'Tambah Bookmark'),
+                  ],
+                ),
+              ),
+            ],
+          ).then((value) async {
+            if (value == 'select') {
+              setState(() {
+                _isSelectionMode = true;
+                _selectedVerses.add(verse.verseNumber);
+              });
+            } else if (value == 'copy') {
+              _copySingleVerse(verse);
+            } else if (value == 'share') {
+              _shareSingleVerse(verse);
+            } else if (value == 'bookmark') {
+              // Use Supabase bookmark method
+              _toggleSupabaseBookmark(key, verse);
+            }
+          });
+        }
+      },
+      onTap: _isSelectionMode
+          ? () => _toggleVerseSelection(verse.verseNumber)
+          : null,
+      child: Container(
         padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 16.0),
+        color: isSelected ? Colors.blue.withAlpha(40) : Colors.transparent,
         child: RichText(
           text: TextSpan(
             children: [
@@ -217,6 +497,10 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                 _currentChapter = chapter;
                 _versesFuture = _fetchVerses();
                 _saveReadingProgress();
+
+                // Clear any selections when changing chapters
+                _selectedVerses.clear();
+                _isSelectionMode = false;
               });
             },
             child: Card(
@@ -239,6 +523,45 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  // Show version selection dialog
+  void _showVersionDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Pilih Versi Alkitab'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RadioListTile<String>(
+              title: const Text('Alkitab Berita Baik (ABB)'),
+              value: 'ABB',
+              groupValue: _currentVersion,
+              onChanged: (value) {
+                Navigator.pop(context);
+                setState(() {
+                  _currentVersion = value!;
+                  _versesFuture = _fetchVerses();
+                });
+              },
+            ),
+            RadioListTile<String>(
+              title: const Text('Alkitab Terjemahan Baru (ATB)'),
+              value: 'ATB',
+              groupValue: _currentVersion,
+              onChanged: (value) {
+                Navigator.pop(context);
+                setState(() {
+                  _currentVersion = value!;
+                  _versesFuture = _fetchVerses();
+                });
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -266,30 +589,68 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/bible'),
         ),
-        actions: [
-          IconButton(icon: const Icon(Icons.search), onPressed: () {}),
-          IconButton(
-              icon: const Icon(Icons.remove),
-              onPressed: () => setState(
-                  () => _fontSize = (_fontSize - 2).clamp(12.0, 28.0))),
-          IconButton(
-              icon: const Icon(Icons.add),
-              onPressed: () => setState(
-                  () => _fontSize = (_fontSize + 2).clamp(12.0, 28.0))),
-          IconButton(
-            icon: const Icon(Icons.volume_up),
-            onPressed: () async {
-              final verses = await _versesFuture;
-              _isSpeaking ? await _stopSpeaking() : await _speakChapter(verses);
-            },
-          ),
-        ],
+        actions: _isSelectionMode
+            ? [
+                IconButton(
+                  icon: const Icon(Icons.copy),
+                  onPressed: () async {
+                    final verses = await _versesFuture;
+                    _copySelectedVerses(verses);
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.share),
+                  onPressed: () async {
+                    final verses = await _versesFuture;
+                    _shareSelectedVerses(verses);
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => setState(() {
+                    _selectedVerses.clear();
+                    _isSelectionMode = false;
+                  }),
+                ),
+              ]
+            : [
+                // Bookmark icon to navigate to bookmarks screen
+                IconButton(
+                  icon: const Icon(Icons.bookmarks),
+                  onPressed: _navigateToBookmarksScreen,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.translate),
+                  onPressed: _showVersionDialog,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.remove),
+                  onPressed: () => setState(
+                      () => _fontSize = (_fontSize - 2).clamp(12.0, 28.0)),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add),
+                  onPressed: () => setState(
+                      () => _fontSize = (_fontSize + 2).clamp(12.0, 28.0)),
+                ),
+                IconButton(
+                  icon: Icon(_isSpeaking ? Icons.stop : Icons.volume_up),
+                  onPressed: () async {
+                    final verses = await _versesFuture;
+                    _isSpeaking
+                        ? await _stopSpeaking()
+                        : await _speakChapter(verses);
+                  },
+                ),
+              ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showChapterPicker,
-        tooltip: 'Pilih Pasal',
-        child: const Icon(Icons.grid_view),
-      ),
+      floatingActionButton: _isSelectionMode
+          ? null
+          : FloatingActionButton(
+              onPressed: _showChapterPicker,
+              tooltip: 'Pilih Pasal',
+              child: const Icon(Icons.grid_view),
+            ),
       body: FutureBuilder<List<BibleVerse>>(
         future: _versesFuture,
         builder: (context, snapshot) {
@@ -321,6 +682,27 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                   ],
                 ),
               ),
+              if (_isSelectionMode)
+                Container(
+                  padding: const EdgeInsets.all(8.0),
+                  color: Colors.blue.withOpacity(0.1),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${_selectedVerses.length} ayat dipilih',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      TextButton(
+                        onPressed: () => setState(() {
+                          _selectedVerses.clear();
+                          _isSelectionMode = false;
+                        }),
+                        child: const Text('Batal'),
+                      ),
+                    ],
+                  ),
+                ),
               Expanded(
                 child: ListView.builder(
                   controller: _scrollController,
@@ -348,5 +730,12 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
         },
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _tts.stop();
+    super.dispose();
   }
 }
