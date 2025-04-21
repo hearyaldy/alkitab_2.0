@@ -115,18 +115,39 @@ class _BookmarksScreenState extends State<BookmarksScreen>
     try {
       String shareText;
 
-      if (bookmark['type'] == 'devotional') {
-        final devotionalData = _getDevotionalById(bookmark['content_id']);
-        if (devotionalData != null) {
+      // Check for type in either 'type' or 'bookmark_type' field
+      final bookmarkType = bookmark['type'] ?? bookmark['bookmark_type'];
+
+      if (bookmarkType == 'devotional') {
+        // For devotional bookmark
+        final devotionalId = bookmark['content_id'];
+        final devotionalData =
+            devotionalId != null ? _getDevotionalById(devotionalId) : null;
+
+        if (devotionalData != null &&
+            devotionalData['title'] != null &&
+            devotionalData['content'] != null) {
+          final content = devotionalData['content'] as String;
+          final excerpt = content.length > 150
+              ? '${content.substring(0, 150)}...'
+              : content;
           shareText =
-              '${devotionalData['title']}\n\n${devotionalData['content'].substring(0, 150)}...\n\nShared from My Faith App';
+              '${devotionalData['title']}\n\n$excerpt\n\nShared from My Faith App';
+        } else if (bookmark['title'] != null) {
+          // Use bookmark title if available
+          shareText = '${bookmark['title']}\n\nShared from My Faith App';
         } else {
-          shareText = 'Bookmark from My Faith App';
+          // Fallback
+          shareText = 'Devotional bookmark from My Faith App';
         }
       } else {
         // Bible verse
-        shareText =
-            '${bookmark['reference']} - ${bookmark['verse_text']}\n\nShared from My Faith App';
+        final reference = bookmark['reference'] ??
+            bookmark['verse_reference'] ??
+            'Bible verse';
+        final verseText = bookmark['verse_text'] ?? '';
+
+        shareText = '$reference - $verseText\n\nShared from My Faith App';
       }
 
       await Share.share(shareText);
@@ -178,8 +199,10 @@ class _BookmarksScreenState extends State<BookmarksScreen>
         }
 
         final bookmarks = snapshot.data ?? [];
-        final devotionalBookmarks =
-            bookmarks.where((b) => b['type'] == 'devotional').toList();
+        final devotionalBookmarks = bookmarks
+            .where((b) =>
+                b['type'] == 'devotional' || b['bookmark_type'] == 'devotional')
+            .toList();
 
         if (devotionalBookmarks.isEmpty) {
           return Center(
@@ -218,82 +241,276 @@ class _BookmarksScreenState extends State<BookmarksScreen>
           itemCount: devotionalBookmarks.length,
           itemBuilder: (context, index) {
             final bookmark = devotionalBookmarks[index];
-            final devotionalId = bookmark['content_id'];
-            final devotionalData = _getDevotionalById(devotionalId);
 
-            if (devotionalData == null) {
-              // Devotional data not found (perhaps deleted or not loaded)
-              return Card(
-                margin: const EdgeInsets.only(bottom: 16),
-                child: ListTile(
-                  title: const Text('Devotional not found'),
-                  subtitle: Text('Bookmark ID: ${bookmark['id']}'),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () => _deleteBookmark(bookmark['id']),
-                  ),
-                ),
-              );
+            // Get devotional title and verse reference
+            final title = bookmark['title'] ?? 'Untitled Devotional';
+            final verseReference = bookmark['verse_reference'] ?? '';
+
+            // Safe date parsing
+            String formattedDate;
+            try {
+              final date = DateTime.parse(bookmark['created_at'] ?? '');
+              formattedDate = '${date.day}/${date.month}/${date.year}';
+            } catch (e) {
+              formattedDate = 'Date unknown';
             }
 
-            final date = DateTime.parse(bookmark['created_at']);
-            final formattedDate = '${date.day}/${date.month}/${date.year}';
-
             return Card(
-              margin: const EdgeInsets.only(bottom: 16),
+              margin: const EdgeInsets.only(bottom: 12),
               elevation: 2,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ListTile(
-                    title: Text(
-                      devotionalData['title'] ?? 'Untitled Devotional',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
+              child: InkWell(
+                onTap: () {
+                  // Show bottom sheet with devotional details
+                  _showDevotionalBottomSheet(context, bookmark);
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  title,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                if (verseReference.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(
+                                      verseReference,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.indigo.shade700,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                  ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Bookmarked on $formattedDate',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.share,
+                                    color: Colors.indigo),
+                                onPressed: () => _shareBookmark(bookmark),
+                              ),
+                              IconButton(
+                                icon:
+                                    const Icon(Icons.delete, color: Colors.red),
+                                onPressed: () =>
+                                    _deleteBookmark(bookmark['id']),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Show bottom sheet with devotional details
+  void _showDevotionalBottomSheet(
+      BuildContext context, Map<String, dynamic> bookmark) {
+    // Get devotional data if available
+    final devotionalId = bookmark['content_id'];
+    final devotionalData =
+        devotionalId != null ? _getDevotionalById(devotionalId) : null;
+
+    final title =
+        bookmark['title'] ?? devotionalData?['title'] ?? 'Untitled Devotional';
+    final verseReference = bookmark['verse_reference'] ?? '';
+    final content =
+        devotionalData?['content'] ?? bookmark['devotional_text'] ?? '';
+    final reflectionQuestions = devotionalData?['reflection_questions'] ??
+        bookmark['reflection_questions'];
+    final prayer = devotionalData?['prayer'] ?? bookmark['prayer'];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true, // Makes the bottom sheet expandable
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.7, // Initial height (70% of screen)
+          minChildSize: 0.5, // Minimum height (50% of screen)
+          maxChildSize: 0.95, // Maximum height (95% of screen)
+          expand: false,
+          builder: (context, scrollController) {
+            return SingleChildScrollView(
+              controller: scrollController,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Handle to drag the sheet
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 5,
+                        margin: const EdgeInsets.only(bottom: 20),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                     ),
-                    subtitle: Text('Bookmarked on $formattedDate'),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.share, color: Colors.indigo),
-                          onPressed: () => _shareBookmark(bookmark),
+
+                    // Title
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Verse reference if available
+                    if (verseReference.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.indigo.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.indigo.shade200),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => _deleteBookmark(bookmark['id']),
+                        child: Text(
+                          verseReference,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.indigo.shade700,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+
+                    // Divider
+                    const Divider(height: 24),
+
+                    // Content
+                    if (content.isNotEmpty) ...[
+                      const Text(
+                        'Devotional',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        content,
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // Reflection Questions
+                    if (reflectionQuestions != null &&
+                        reflectionQuestions.toString().isNotEmpty) ...[
+                      const Text(
+                        'Reflection Questions',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        reflectionQuestions.toString(),
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // Prayer
+                    if (prayer != null && prayer.toString().isNotEmpty) ...[
+                      const Text(
+                        'Prayer',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        prayer.toString(),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+
+                    // Action buttons
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton.icon(
+                          icon: const Icon(Icons.share),
+                          label: const Text('Share'),
+                          onPressed: () {
+                            Navigator.pop(context); // Close the bottom sheet
+                            _shareBookmark(bookmark);
+                          },
+                        ),
+                        const SizedBox(width: 16),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.menu_book),
+                          label: const Text('Go to Devotional'),
+                          onPressed: () {
+                            Navigator.pop(context); // Close the bottom sheet
+                            if (devotionalData != null &&
+                                devotionalData['id'] != null) {
+                              context.go(
+                                  '/devotional/details/${devotionalData['id']}');
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text(
+                                        'Devotional details not available')),
+                              );
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.indigo,
+                            foregroundColor: Colors.white,
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                  Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Text(
-                      devotionalData['content'] != null
-                          ? (devotionalData['content'] as String).length > 150
-                              ? '${(devotionalData['content'] as String).substring(0, 150)}...'
-                              : devotionalData['content']
-                          : 'No content available',
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: ElevatedButton(
-                        child: const Text('Read More'),
-                        onPressed: () {
-                          context.go(
-                              '/devotional/details/${devotionalData['id']}');
-                        },
-                      ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             );
           },
@@ -334,8 +551,9 @@ class _BookmarksScreenState extends State<BookmarksScreen>
         }
 
         final bookmarks = snapshot.data ?? [];
-        final bibleBookmarks =
-            bookmarks.where((b) => b['type'] == 'bible').toList();
+        final bibleBookmarks = bookmarks
+            .where((b) => b['type'] == 'bible' || b['bookmark_type'] == 'bible')
+            .toList();
 
         if (bibleBookmarks.isEmpty) {
           return Center(
@@ -374,82 +592,273 @@ class _BookmarksScreenState extends State<BookmarksScreen>
           itemCount: bibleBookmarks.length,
           itemBuilder: (context, index) {
             final bookmark = bibleBookmarks[index];
-            final date = DateTime.parse(bookmark['created_at']);
-            final formattedDate = '${date.day}/${date.month}/${date.year}';
+
+            // Safe date parsing
+            String formattedDate;
+            try {
+              final date = DateTime.parse(bookmark['created_at'] ?? '');
+              formattedDate = '${date.day}/${date.month}/${date.year}';
+            } catch (e) {
+              formattedDate = 'Date unknown';
+            }
+
+            // Get reference from either reference or verse_reference field
+            final reference = bookmark['reference'] ??
+                bookmark['verse_reference'] ??
+                'Unknown Reference';
 
             return Card(
-              margin: const EdgeInsets.only(bottom: 16),
+              margin: const EdgeInsets.only(bottom: 12),
               elevation: 2,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ListTile(
-                    title: Text(
-                      bookmark['reference'] ?? 'Unknown Reference',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
+              child: InkWell(
+                onTap: () {
+                  // Show bottom sheet with verse details
+                  _showBibleVerseBottomSheet(context, bookmark);
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // Bible icon
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.indigo.shade100,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.book,
+                          color: Colors.indigo.shade700,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+
+                      // Reference and date
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              reference,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Bookmarked on $formattedDate',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Action buttons
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.share, color: Colors.indigo),
+                            onPressed: () => _shareBookmark(bookmark),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => _deleteBookmark(bookmark['id']),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Show bottom sheet with Bible verse details
+  void _showBibleVerseBottomSheet(
+      BuildContext context, Map<String, dynamic> bookmark) {
+    // Get verse reference and text
+    final reference = bookmark['reference'] ??
+        bookmark['verse_reference'] ??
+        'Unknown Reference';
+    final verseText = bookmark['verse_text'] ?? 'Verse text not available';
+    final notes = bookmark['notes'];
+    final bookId = bookmark['book_id'];
+    final chapterId = bookmark['chapter_id'];
+    final verseId = bookmark['verse_id'];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true, // Makes the bottom sheet expandable
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.6, // Initial height (60% of screen)
+          minChildSize: 0.5, // Minimum height (50% of screen)
+          maxChildSize: 0.9, // Maximum height (90% of screen)
+          expand: false,
+          builder: (context, scrollController) {
+            return SingleChildScrollView(
+              controller: scrollController,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Handle to drag the sheet
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 5,
+                        margin: const EdgeInsets.only(bottom: 20),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                     ),
-                    subtitle: Text('Bookmarked on $formattedDate'),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.share, color: Colors.indigo),
-                          onPressed: () => _shareBookmark(bookmark),
+
+                    // Reference
+                    Text(
+                      reference,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Verse text
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.indigo.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.indigo.shade200),
+                      ),
+                      child: Text(
+                        verseText,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontStyle: FontStyle.italic,
+                          height: 1.5,
+                          color: Colors.indigo.shade900,
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => _deleteBookmark(bookmark['id']),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Notes if available
+                    if (notes != null && notes.toString().isNotEmpty) ...[
+                      const Text(
+                        'Notes',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.amber.shade200),
+                        ),
+                        child: Text(
+                          notes.toString(),
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+
+                    // Action buttons
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        TextButton.icon(
+                          icon: const Icon(Icons.share),
+                          label: const Text('Share'),
+                          onPressed: () {
+                            Navigator.pop(context); // Close the bottom sheet
+                            _shareBookmark(bookmark);
+                          },
+                        ),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.book),
+                          label: const Text('Go to Passage'),
+                          onPressed: () {
+                            Navigator.pop(context); // Close the bottom sheet
+                            try {
+                              if (bookId != null && chapterId != null) {
+                                // If we have the book and chapter IDs, use them directly
+                                final verse = verseId ?? '1';
+                                context.go(
+                                    '/bible/read/$bookId/$chapterId/$verse');
+                              } else {
+                                // Otherwise try to parse from the reference
+                                final refString = reference.toString();
+
+                                // Extract book name and chapter:verse reference
+                                String book;
+                                String chapterVerse;
+
+                                // Check if reference contains a space (e.g., "Genesis 1:1")
+                                if (refString.contains(' ')) {
+                                  final parts = refString.split(' ');
+                                  book = parts[0];
+                                  chapterVerse =
+                                      parts.length > 1 ? parts[1] : '1:1';
+                                } else {
+                                  // Handle case where there's no space (unlikely but safe)
+                                  book = 'Genesis';
+                                  chapterVerse = '1:1';
+                                }
+
+                                // Split chapter and verse
+                                final chapterVerseParts =
+                                    chapterVerse.split(':');
+                                final chapter = chapterVerseParts[0];
+                                final verse = chapterVerseParts.length > 1
+                                    ? chapterVerseParts[1]
+                                    : '1';
+
+                                // Navigate to the Bible passage
+                                context.go('/bible/read/$book/$chapter/$verse');
+                              }
+                            } catch (e) {
+                              // Handle parsing errors
+                              debugPrint('Error parsing reference: $e');
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text(
+                                        'Could not navigate to this passage')),
+                              );
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.indigo,
+                            foregroundColor: Colors.white,
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.indigo.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border:
-                            Border.all(color: Colors.indigo.withOpacity(0.3)),
-                      ),
-                      child: Text(
-                        bookmark['verse_text'] ?? 'Verse text not available',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: ElevatedButton(
-                        child: const Text('Go to Passage'),
-                        onPressed: () {
-                          // Parse the reference to get book, chapter, verse
-                          final parts =
-                              bookmark['reference'].toString().split(' ');
-                          final book = parts[0];
-                          final chapterVerse = parts.length > 1
-                              ? parts[1].split(':')
-                              : ['1', '1'];
-                          final chapter = chapterVerse[0];
-                          final verse =
-                              chapterVerse.length > 1 ? chapterVerse[1] : '1';
-
-                          context.go('/bible/read/$book/$chapter/$verse');
-                        },
-                      ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             );
           },
@@ -491,8 +900,9 @@ class _BookmarksScreenState extends State<BookmarksScreen>
       body: SafeArea(
         child: Column(
           children: [
+            // Header image section
             SizedBox(
-              height: 180,
+              height: 150,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -507,7 +917,7 @@ class _BookmarksScreenState extends State<BookmarksScreen>
                     child: const Text(
                       'My Bookmarks',
                       style: TextStyle(
-                        fontSize: 20,
+                        fontSize: 24,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                         shadows: [Shadow(blurRadius: 2, color: Colors.black45)],
@@ -528,27 +938,32 @@ class _BookmarksScreenState extends State<BookmarksScreen>
                       },
                     ),
                   ),
-                  // Add tabs at the bottom of the header
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: Container(
-                      color: Colors.black.withOpacity(0.5),
-                      child: TabBar(
-                        controller: _tabController,
-                        tabs: const [
-                          Tab(text: 'Devotionals'),
-                          Tab(text: 'Bible Verses'),
-                        ],
-                        indicatorColor: Colors.white,
-                        labelColor: Colors.white,
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
+
+            // Tab bar moved below header
+            Container(
+              color: _themeColor,
+              child: TabBar(
+                controller: _tabController,
+                tabs: const [
+                  Tab(
+                    text: 'Devotionals',
+                    icon: Icon(Icons.menu_book),
+                  ),
+                  Tab(
+                    text: 'Bible Verses',
+                    icon: Icon(Icons.book),
+                  ),
+                ],
+                indicatorColor: Colors.white,
+                labelColor: Colors.white,
+                unselectedLabelColor: Colors.white70,
+              ),
+            ),
+
+            // Tab content
             Expanded(
               child: TabBarView(
                 controller: _tabController,
