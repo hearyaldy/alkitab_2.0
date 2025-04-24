@@ -135,7 +135,7 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
     // Store book-level progress
     final maxChapters = getMaxChapters(_currentBookId);
     final progress = (_currentChapter / maxChapters).clamp(0.0, 1.0);
-    await prefs.setDouble('progress_${_currentBookId}', progress);
+    await prefs.setDouble('progress_$_currentBookId', progress);
   }
 
   void _loadBookmarks() async {
@@ -159,7 +159,7 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
           .eq('user_id', user.id)
           .eq('type', 'bible');
 
-      if (response != null && response is List) {
+      if (response is List) {
         final Set<String> supabaseBookmarks = {};
 
         for (final bookmark in response) {
@@ -168,7 +168,7 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
           final verseId = bookmark['verse_id'];
 
           if (bookId != null && chapterId != null && verseId != null) {
-            supabaseBookmarks.add('${bookId}_${chapterId}_${verseId}');
+            supabaseBookmarks.add('${bookId}_${chapterId}_$verseId');
           }
         }
 
@@ -665,7 +665,7 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
             children: [
               Container(
                 width: double.infinity,
-                color: Theme.of(context).colorScheme.surfaceVariant,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 padding:
                     const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                 child: Column(

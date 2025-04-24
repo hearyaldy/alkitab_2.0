@@ -13,7 +13,6 @@ class AppTheme {
   static ThemeData get lightTheme {
     final base = ThemeData.light();
     return base.copyWith(
-      useMaterial3: true,
       primaryColor: primaryColor,
       scaffoldBackgroundColor: Colors.white,
       textTheme: base.textTheme.apply(
@@ -60,7 +59,6 @@ class AppTheme {
   static ThemeData get darkTheme {
     final base = ThemeData.dark();
     return base.copyWith(
-      useMaterial3: true,
       primaryColor: primaryColor,
       scaffoldBackgroundColor: Colors.black,
       textTheme: base.textTheme.apply(

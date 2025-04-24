@@ -21,7 +21,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   late TextEditingController _nameController;
   late TextEditingController _emailController;
   String _lastLogin = 'Not available';
-  String _lastPasswordChange = 'Not available';
+  final String _lastPasswordChange = 'Not available';
   File? _profileImage;
   String? _photoUrl;
 

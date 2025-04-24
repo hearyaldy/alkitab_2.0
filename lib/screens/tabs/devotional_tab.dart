@@ -1,11 +1,13 @@
-import 'dart:convert';
-import 'dart:math';
+// lib/screens/tabs/devotional_tab.dart
+
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../models/devotional_model.dart';
+import '../../services/devotional_service.dart';
 
 class DevotionalTab extends StatefulWidget {
   const DevotionalTab({super.key});
@@ -18,10 +20,11 @@ class _DevotionalTabState extends State<DevotionalTab> {
   bool _isLoading = false;
   bool _hasError = false;
 
-  List<dynamic> _allDevotionals = [];
-  Map<String, dynamic>? _todayDevotional;
+  List<DevotionalModel> _allDevotionals = [];
+  DevotionalModel? _todayDevotional;
 
-  final int _readingStreak = 3;
+  final int _readingStreak =
+      3; // This would be dynamically calculated in a real app
 
   final TextEditingController _notesController = TextEditingController();
 
@@ -29,10 +32,12 @@ class _DevotionalTabState extends State<DevotionalTab> {
 
   Set<String> _bookmarkedVerses = {};
 
+  final DevotionalService _devotionalService = DevotionalService();
+
   @override
   void initState() {
     super.initState();
-    _fetchAllJsonFiles();
+    _loadDevotionals();
     _loadBookmarkedVerses();
     _loadSavedNote();
   }
@@ -48,57 +53,29 @@ class _DevotionalTabState extends State<DevotionalTab> {
     await prefs.setString('my_devotional_note', value);
   }
 
-  Future<void> _fetchAllJsonFiles() async {
+  Future<void> _loadDevotionals() async {
     setState(() {
       _isLoading = true;
       _hasError = false;
-      _allDevotionals.clear();
-      _todayDevotional = null;
     });
 
     try {
-      final storage = Supabase.instance.client.storage;
-      final files = await storage.from('devotional-readings').list(path: '');
+      // Use the service instead of directly fetching
+      final devotionals = await _devotionalService.getAllDevotionals();
+      final todayDevo = await _devotionalService.getTodayDevotional();
 
-      final List<dynamic> combined = [];
-      for (final fileObj in files) {
-        final fileName = fileObj.name;
-        if (!fileName.endsWith('.json')) continue;
-
-        final publicUrl =
-            storage.from('devotional-readings').getPublicUrl(fileName);
-        final response = await http.get(Uri.parse(publicUrl));
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          if (data is List) {
-            combined.addAll(data);
-          }
-        } else {
-          debugPrint('Error fetching $fileName: ${response.statusCode}');
-        }
-      }
-      _allDevotionals = combined;
-      _pickTodayDevotional();
-    } catch (e) {
-      debugPrint('Error listing/fetching devotionals: $e');
-      _hasError = true;
-    }
-
-    if (mounted) {
       setState(() {
+        _allDevotionals = devotionals;
+        _todayDevotional = todayDevo;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading devotionals: $e');
+      setState(() {
+        _hasError = true;
         _isLoading = false;
       });
     }
-  }
-
-  void _pickTodayDevotional() {
-    if (_allDevotionals.isEmpty) return;
-    final now = DateTime.now();
-    final dayOfYear = now.difference(DateTime(now.year, 1, 1)).inDays + 1;
-    final index = dayOfYear % _allDevotionals.length;
-    _todayDevotional = _allDevotionals[index] as Map<String, dynamic>;
-    debugPrint(
-        'Today’s devotional index: $index, title: ${_todayDevotional?['title']}');
   }
 
   Future<void> _loadBookmarkedVerses() async {
@@ -124,7 +101,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
     }
   }
 
-  Future<void> _bookmarkDevotional(Map<String, dynamic> devotional) async {
+  Future<void> _bookmarkDevotional(DevotionalModel devotional) async {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -133,13 +110,14 @@ class _DevotionalTabState extends State<DevotionalTab> {
       return;
     }
 
-    final verseRef = devotional['verse_reference'];
-    if (_bookmarkedVerses.contains(verseRef)) return;
+    final verseRef = devotional.verseReference;
+    if (verseRef == null || _bookmarkedVerses.contains(verseRef)) return;
 
     final data = {
       'user_id': user.id,
       'verse_reference': verseRef,
-      'title': devotional['title'] ?? 'Untitled',
+      'title': devotional.title,
+      'content_id': devotional.id,
       'created_at': DateTime.now().toIso8601String(),
       'bookmark_type': 'devotional',
       'chapter_id': 0,
@@ -172,11 +150,11 @@ class _DevotionalTabState extends State<DevotionalTab> {
     }
   }
 
-  void _shareDevotional(Map<String, dynamic> devotional) {
-    final title = devotional['title'] ?? 'Untitled Devotional';
-    final verse = devotional['verse_reference'] ?? '';
-    final text = devotional['devotional_text'] ?? '';
-    final prayer = devotional['prayer'] ?? '';
+  void _shareDevotional(DevotionalModel devotional) {
+    final title = devotional.title;
+    final verse = devotional.verseReference ?? '';
+    final text = devotional.content;
+    final prayer = devotional.prayer;
 
     final content = '''
 $title
@@ -190,7 +168,7 @@ $text
     Share.share(content, subject: title);
   }
 
-  void _showDevotionalDetails(Map<String, dynamic> devotional) {
+  void _showDevotionalDetails(DevotionalModel devotional) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -208,22 +186,22 @@ $text
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    devotional['title'] ?? 'Untitled',
+                    devotional.title,
                     style: const TextStyle(
                         fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    devotional['verse_reference'] ?? '',
-                    style: const TextStyle(fontStyle: FontStyle.italic),
-                  ),
+                  if (devotional.verseReference != null)
+                    Text(
+                      devotional.verseReference!,
+                      style: const TextStyle(fontStyle: FontStyle.italic),
+                    ),
                   const SizedBox(height: 16),
-                  Text(devotional['devotional_text'] ?? '',
-                      style: const TextStyle(height: 1.5)),
+                  Text(devotional.content, style: const TextStyle(height: 1.5)),
                   const SizedBox(height: 16),
                   const Text('Prayer:',
                       style: TextStyle(fontWeight: FontWeight.bold)),
-                  Text(devotional['prayer'] ?? '',
+                  Text(devotional.prayer,
                       style: const TextStyle(fontStyle: FontStyle.italic)),
                   const SizedBox(height: 24),
                   Align(
@@ -269,6 +247,16 @@ $text
               ],
             ),
           ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Refresh devotionals',
+              onPressed: () {
+                _devotionalService.refreshCache();
+                _loadDevotionals();
+              },
+            ),
+          ],
         ),
         SliverList(
           delegate: SliverChildListDelegate([
@@ -287,7 +275,7 @@ $text
               const Padding(
                 padding: EdgeInsets.all(16.0),
                 child: Text(
-                  'No devotionals found in the "devotional-readings" bucket.',
+                  'No devotionals found.',
                   textAlign: TextAlign.center,
                 ),
               )
@@ -305,10 +293,9 @@ $text
                   .where((dev) => dev != _todayDevotional)
                   .take(5)
                   .map((dev) {
-                final title = dev['title'] ?? 'Untitled';
-                final verseRef = dev['verse_reference'] ?? '';
+                final verseRef = dev.verseReference ?? '';
                 return ListTile(
-                  title: Text(title),
+                  title: Text(dev.title),
                   subtitle: Text(verseRef),
                   trailing: IconButton(
                     icon: Icon(
@@ -328,13 +315,7 @@ $text
     );
   }
 
-  Widget _buildTodayDevotion(Map<String, dynamic> devo) {
-    final title = devo['title'] ?? 'Untitled';
-    final verseRef = devo['verse_reference'] ?? '';
-    final verseText = devo['verse_text'] ?? '';
-    final devoText = devo['devotional_text'] ?? '';
-    final reflection = devo['reflection_questions'] as List<dynamic>? ?? [];
-    final prayer = devo['prayer'] ?? '';
+  Widget _buildTodayDevotion(DevotionalModel devo) {
     final now = DateTime.now();
     final dateString = '${now.month}/${now.day}/${now.year}';
 
@@ -366,7 +347,7 @@ $text
               ),
               const SizedBox(height: 8),
               Text(
-                title,
+                devo.title,
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -374,42 +355,46 @@ $text
                 ),
               ),
               const SizedBox(height: 8),
-              Text(
-                verseText,
-                style:
-                    const TextStyle(fontSize: 16, fontStyle: FontStyle.italic),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                verseRef,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: _themeColor.shade700,
+              if (devo.verseText != null)
+                Text(
+                  devo.verseText!,
+                  style: const TextStyle(
+                      fontSize: 16, fontStyle: FontStyle.italic),
                 ),
-              ),
+              const SizedBox(height: 4),
+              if (devo.verseReference != null)
+                Text(
+                  devo.verseReference!,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: _themeColor.shade700,
+                  ),
+                ),
               const SizedBox(height: 16),
               Text(
-                devoText,
+                devo.content,
                 style: const TextStyle(fontSize: 16, height: 1.5),
               ),
               const SizedBox(height: 24),
-              const Text(
-                'Reflection Questions:',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                reflection.map((q) => '• $q').join('\n\n'),
-                style: const TextStyle(fontSize: 15, height: 1.5),
-              ),
-              const SizedBox(height: 20),
+              if (devo.reflectionQuestions.isNotEmpty) ...[
+                const Text(
+                  'Reflection Questions:',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  devo.reflectionQuestions.map((q) => '• $q').join('\n\n'),
+                  style: const TextStyle(fontSize: 15, height: 1.5),
+                ),
+                const SizedBox(height: 20),
+              ],
               const Text(
                 'Prayer:',
                 style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 6),
               Text(
-                prayer,
+                devo.prayer,
                 style: const TextStyle(
                   fontSize: 15,
                   fontStyle: FontStyle.italic,
@@ -438,7 +423,11 @@ $text
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.bookmark_border),
+                    icon: Icon(
+                      _bookmarkedVerses.contains(devo.verseReference)
+                          ? Icons.bookmark
+                          : Icons.bookmark_border,
+                    ),
                     tooltip: 'Bookmark this Devotional',
                     onPressed: () => _bookmarkDevotional(devo),
                   ),
