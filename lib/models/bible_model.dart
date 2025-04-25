@@ -1,9 +1,25 @@
-class BibleBook {
+import 'package:hive/hive.dart';
+
+part 'bible_model.g.dart'; // We'll generate this with build_runner
+
+@HiveType(typeId: 0)
+class BibleBook extends HiveObject {
+  @HiveField(0)
   final String id;
+
+  @HiveField(1)
   final String name;
+
+  @HiveField(2)
   final String abbreviation;
+
+  @HiveField(3)
   final int order;
+
+  @HiveField(4)
   final String testament;
+
+  @HiveField(5)
   final int chapters;
 
   BibleBook({
@@ -17,12 +33,13 @@ class BibleBook {
 
   factory BibleBook.fromJson(Map<String, dynamic> json) {
     return BibleBook(
-      id: json['id'],
-      name: json['name'],
-      abbreviation: json['abbreviation'],
-      order: json['order'],
-      testament: json['testament'],
-      chapters: json['chapters'],
+      id: json['id'] ?? json['book_name']?.toLowerCase().replaceAll(' ', '_'),
+      name: json['name'] ?? json['book_name'],
+      abbreviation: json['abbreviation'] ??
+          (json['book_name'] as String?)?.substring(0, 3),
+      order: json['order'] ?? 0,
+      testament: json['testament'] ?? (json['order'] <= 39 ? 'OT' : 'NT'),
+      chapters: json['chapters'] ?? 1,
     );
   }
 
@@ -36,13 +53,28 @@ class BibleBook {
       'chapters': chapters,
     };
   }
+
+  @override
+  String toString() {
+    return 'BibleBook(id: $id, name: $name, chapters: $chapters)';
+  }
 }
 
-class BibleVerse {
-  final int id; // can be same as verseNumber
+@HiveType(typeId: 1)
+class BibleVerse extends HiveObject {
+  @HiveField(0)
+  final int id;
+
+  @HiveField(1)
   final String bookId;
+
+  @HiveField(2)
   final int chapterId;
+
+  @HiveField(3)
   final int verseNumber;
+
+  @HiveField(4)
   final String text;
 
   BibleVerse({
@@ -55,11 +87,13 @@ class BibleVerse {
 
   factory BibleVerse.fromJson(Map<String, dynamic> json) {
     return BibleVerse(
-      id: json['verse'],
-      bookId: json['book_name'].toLowerCase().replaceAll(' ', '_'),
-      chapterId: json['chapter'],
-      verseNumber: json['verse'],
-      text: json['text'],
+      id: json['verse'] ?? json['id'] ?? 0,
+      bookId: json['book_name']?.toLowerCase().replaceAll(' ', '_') ??
+          json['bookId'] ??
+          '',
+      chapterId: json['chapter'] ?? json['chapterId'] ?? 0,
+      verseNumber: json['verse'] ?? json['verseNumber'] ?? 0,
+      text: json['text'] ?? '',
     );
   }
 
@@ -72,12 +106,25 @@ class BibleVerse {
       'text': text,
     };
   }
+
+  @override
+  String toString() {
+    return 'BibleVerse(bookId: $bookId, chapter: $chapterId, verse: $verseNumber)';
+  }
 }
 
-class BibleVersion {
+@HiveType(typeId: 2)
+class BibleVersion extends HiveObject {
+  @HiveField(0)
   final String id;
+
+  @HiveField(1)
   final String name;
+
+  @HiveField(2)
   final String code;
+
+  @HiveField(3)
   final String? description;
 
   BibleVersion({
@@ -89,9 +136,9 @@ class BibleVersion {
 
   factory BibleVersion.fromJson(Map<String, dynamic> json) {
     return BibleVersion(
-      id: json['id'],
-      name: json['name'],
-      code: json['code'],
+      id: json['id'] ?? '',
+      name: json['name'] ?? '',
+      code: json['code'] ?? '',
       description: json['description'],
     );
   }
@@ -103,5 +150,10 @@ class BibleVersion {
       'code': code,
       'description': description,
     };
+  }
+
+  @override
+  String toString() {
+    return 'BibleVersion(name: $name, code: $code)';
   }
 }
