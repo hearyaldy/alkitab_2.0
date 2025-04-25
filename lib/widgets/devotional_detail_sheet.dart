@@ -19,9 +19,14 @@ class DevotionalDetailSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title = devotionalModel?.title ?? bookmark['title'] ?? 'Untitled Devotional';
-    final verseReference = devotionalModel?.verseReference ?? bookmark['verse_reference'] ?? '';
-    final content = devotionalModel?.content ?? bookmark['devotional_text'] ?? bookmark['notes'] ?? '';
+    final title =
+        devotionalModel?.title ?? bookmark['title'] ?? 'Untitled Devotional';
+    final verseReference =
+        devotionalModel?.verseReference ?? bookmark['verse_reference'] ?? '';
+    final content = devotionalModel?.content ??
+        bookmark['devotional_text'] ??
+        bookmark['notes'] ??
+        '';
     final reflectionQuestions = devotionalModel?.reflectionQuestions ?? [];
     final prayer = devotionalModel?.prayer ?? bookmark['prayer'] ?? '';
 
@@ -64,8 +69,8 @@ class DevotionalDetailSheet extends StatelessWidget {
                 // Verse reference if available
                 if (verseReference.isNotEmpty)
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
                       color: Colors.indigo.shade50,
@@ -114,13 +119,15 @@ class DevotionalDetailSheet extends StatelessWidget {
                   const SizedBox(height: 8),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: reflectionQuestions.map((question) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0),
-                      child: Text(
-                        '• $question',
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                    )).toList(),
+                    children: reflectionQuestions
+                        .map((question) => Padding(
+                              padding: const EdgeInsets.only(bottom: 8.0),
+                              child: Text(
+                                '• $question',
+                                style: const TextStyle(fontSize: 16),
+                              ),
+                            ))
+                        .toList(),
                   ),
                   const SizedBox(height: 16),
                 ],
@@ -164,12 +171,13 @@ class DevotionalDetailSheet extends StatelessWidget {
                       onPressed: () {
                         Navigator.pop(context); // Close the bottom sheet
                         if (devotionalModel != null) {
-                          context.go('/devotional/details/${devotionalModel!.id}');
+                          context
+                              .go('/devotional/details/${devotionalModel!.id}');
                         } else {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                                content: Text(
-                                    'Devotional details not available')),
+                                content:
+                                    Text('Devotional details not available')),
                           );
                         }
                       },
@@ -188,4 +196,3 @@ class DevotionalDetailSheet extends StatelessWidget {
     );
   }
 }
-                    ),

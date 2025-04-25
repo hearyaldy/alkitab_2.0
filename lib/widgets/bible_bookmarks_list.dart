@@ -1,15 +1,14 @@
-// lib/screens/bookmarks/widgets/bible_bookmarks_list.dart
+// lib/widgets/bible_bookmarks_list.dart
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../models/bookmark_model.dart';
 import 'bible_verse_detail_sheet.dart';
 
 class BibleBookmarksList extends StatelessWidget {
-  final Future<List<BookmarkModel>> bookmarkFuture;
+  final Future<List<Map<String, dynamic>>> bookmarkFuture;
   final VoidCallback onRefresh;
 
   const BibleBookmarksList({
@@ -43,11 +42,12 @@ class BibleBookmarksList extends StatelessWidget {
   }
 
   Future<void> _shareBookmark(
-      BuildContext context, BookmarkModel bookmark) async {
+      BuildContext context, Map<String, dynamic> bookmark) async {
     try {
       // Bible verse
-      final reference = bookmark.verseReference ?? 'Bible verse';
-      final verseText = bookmark.verseText ?? '';
+      final reference =
+          bookmark['reference'] ?? bookmark['verse_reference'] ?? 'Bible verse';
+      final verseText = bookmark['verse_text'] ?? '';
 
       final shareText = '$reference - $verseText\n\nShared from My Faith App';
 
@@ -64,7 +64,7 @@ class BibleBookmarksList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<BookmarkModel>>(
+    return FutureBuilder<List<Map<String, dynamic>>>(
       future: bookmarkFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -90,8 +90,9 @@ class BibleBookmarksList extends StatelessWidget {
         }
 
         final bookmarks = snapshot.data ?? [];
-        final bibleBookmarks =
-            bookmarks.where((b) => b.isBibleBookmark).toList();
+        final bibleBookmarks = bookmarks
+            .where((b) => b['type'] == 'bible' || b['bookmark_type'] == 'bible')
+            .toList();
 
         if (bibleBookmarks.isEmpty) {
           return Center(
@@ -132,7 +133,18 @@ class BibleBookmarksList extends StatelessWidget {
             final bookmark = bibleBookmarks[index];
 
             // Get reference from either reference or verse_reference field
-            final reference = bookmark.verseReference ?? 'Unknown Reference';
+            final reference = bookmark['reference'] ??
+                bookmark['verse_reference'] ??
+                'Unknown Reference';
+
+            // Safe date parsing
+            String formattedDate;
+            try {
+              final date = DateTime.parse(bookmark['created_at'] ?? '');
+              formattedDate = '${date.day}/${date.month}/${date.year}';
+            } catch (e) {
+              formattedDate = 'Date unknown';
+            }
 
             return Card(
               margin: const EdgeInsets.only(bottom: 12),
@@ -188,7 +200,7 @@ class BibleBookmarksList extends StatelessWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Bookmarked on ${bookmark.formattedDate}',
+                              'Bookmarked on $formattedDate',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey.shade600,
@@ -208,8 +220,8 @@ class BibleBookmarksList extends StatelessWidget {
                           ),
                           IconButton(
                             icon: const Icon(Icons.delete, color: Colors.red),
-                            onPressed: () =>
-                                _deleteBookmark(context, bookmark.id),
+                            onPressed: () => _deleteBookmark(
+                                context, bookmark['id'].toString()),
                           ),
                         ],
                       ),

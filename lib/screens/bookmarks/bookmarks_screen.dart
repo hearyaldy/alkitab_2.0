@@ -56,20 +56,6 @@ class _BookmarksScreenState extends State<BookmarksScreen>
     return response.map((e) => Map<String, dynamic>.from(e)).toList();
   }
 
-  // Fix: Changed to sync method that returns DevotionalModel? directly
-  DevotionalModel? getDevotionalById(String id) {
-    try {
-      for (var devotional in _devotionalsFuture) {
-        if (devotional.id == id) {
-          return devotional;
-        }
-      }
-      return null;
-    } catch (e) {
-      return null;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -171,20 +157,33 @@ class _BookmarksScreenState extends State<BookmarksScreen>
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  // Devotionals Tab - Fixed to use the correct parameters
-                  DevotionalBookmarksList(
-                    bookmarkFuture: _bookmarkFuture,
-                    devotionalsFuture: _devotionalsFuture,
-                    onRefresh: () {
-                      setState(() {
-                        _bookmarkFuture = fetchBookmarks();
-                        _devotionalsFuture =
-                            _devotionalService.refreshCache().then((_) {
-                          return _devotionalService.getAllDevotionals();
-                        });
-                      });
-                    },
-                  ),
+                  // Devotionals Tab
+                  FutureBuilder<List<DevotionalModel>>(
+                      future: _devotionalsFuture,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                              child: CircularProgressIndicator());
+                        }
+
+                        final devotionals = snapshot.data ?? [];
+
+                        return DevotionalBookmarksList(
+                          bookmarkFuture: _bookmarkFuture,
+                          devotionals: devotionals,
+                          devotionalService: _devotionalService,
+                          onRefresh: () {
+                            setState(() {
+                              _bookmarkFuture = fetchBookmarks();
+                              _devotionalsFuture =
+                                  _devotionalService.refreshCache().then((_) {
+                                return _devotionalService.getAllDevotionals();
+                              });
+                            });
+                          },
+                        );
+                      }),
 
                   // Bible Verses Tab
                   BibleBookmarksList(

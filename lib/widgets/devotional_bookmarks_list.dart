@@ -6,17 +6,20 @@ import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/devotional_model.dart';
+import '../services/devotional_service.dart';
 import 'devotional_detail_sheet.dart';
 
 class DevotionalBookmarksList extends StatelessWidget {
   final Future<List<Map<String, dynamic>>> bookmarkFuture;
-  final Future<List<DevotionalModel>> devotionalsFuture;
+  final List<DevotionalModel> devotionals;
+  final DevotionalService devotionalService;
   final VoidCallback onRefresh;
 
   const DevotionalBookmarksList({
     super.key,
     required this.bookmarkFuture,
-    required this.devotionalsFuture,
+    required this.devotionals,
+    required this.devotionalService,
     required this.onRefresh,
   });
 
@@ -71,6 +74,16 @@ class DevotionalBookmarksList extends StatelessWidget {
           SnackBar(content: Text("Failed to share: $e")),
         );
       }
+    }
+  }
+
+  // Helper method to find devotional
+  DevotionalModel? _findDevotionalById(String? id) {
+    if (id == null) return null;
+    try {
+      return devotionals.firstWhere((d) => d.id == id);
+    } catch (_) {
+      return null;
     }
   }
 
@@ -139,145 +152,119 @@ class DevotionalBookmarksList extends StatelessWidget {
           );
         }
 
-        return FutureBuilder<List<DevotionalModel>>(
-            future: devotionalsFuture,
-            builder: (context, devotionalSnapshot) {
-              // Show loading indicator only for initial load
-              if (devotionalSnapshot.connectionState ==
-                      ConnectionState.waiting &&
-                  !devotionalSnapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: devotionalBookmarks.length,
+          itemBuilder: (context, index) {
+            final bookmark = devotionalBookmarks[index];
 
-              final devotionals = devotionalSnapshot.data ?? [];
+            // Get devotional data if available
+            final contentId = bookmark['content_id'];
+            final devotional = _findDevotionalById(contentId);
 
-              return ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: devotionalBookmarks.length,
-                itemBuilder: (context, index) {
-                  final bookmark = devotionalBookmarks[index];
+            // Get devotional title and verse reference
+            final title =
+                devotional?.title ?? bookmark['title'] ?? 'Untitled Devotional';
+            final verseReference =
+                devotional?.verseReference ?? bookmark['verse_reference'] ?? '';
 
-                  // Get devotional data if available
-                  final contentId = bookmark['content_id'];
-                  DevotionalModel? devotional;
+            // Safe date parsing
+            String formattedDate;
+            try {
+              final date = DateTime.parse(bookmark['created_at'] ?? '');
+              formattedDate = '${date.day}/${date.month}/${date.year}';
+            } catch (e) {
+              formattedDate = 'Date unknown';
+            }
 
-                  if (contentId != null) {
-                    try {
-                      devotional =
-                          devotionals.firstWhere((d) => d.id == contentId);
-                    } catch (_) {
-                      // Devotional not found in the list
-                    }
-                  }
-
-                  // Get devotional title and verse reference
-                  final title = devotional?.title ??
-                      bookmark['title'] ??
-                      'Untitled Devotional';
-                  final verseReference = devotional?.verseReference ??
-                      bookmark['verse_reference'] ??
-                      '';
-
-                  // Safe date parsing
-                  String formattedDate;
-                  try {
-                    final date = DateTime.parse(bookmark['created_at'] ?? '');
-                    formattedDate = '${date.day}/${date.month}/${date.year}';
-                  } catch (e) {
-                    formattedDate = 'Date unknown';
-                  }
-
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    elevation: 2,
-                    child: InkWell(
-                      onTap: () {
-                        // Show bottom sheet with devotional details
-                        showModalBottomSheet(
-                          context: context,
-                          isScrollControlled: true,
-                          shape: const RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.vertical(top: Radius.circular(16)),
-                          ),
-                          builder: (context) => DevotionalDetailSheet(
-                            bookmark: bookmark,
-                            devotionalModel: devotional,
-                            onShare: () =>
-                                _shareBookmark(context, bookmark, devotional),
-                          ),
-                        );
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        title,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                      if (verseReference.isNotEmpty)
-                                        Padding(
-                                          padding:
-                                              const EdgeInsets.only(top: 4),
-                                          child: Text(
-                                            verseReference,
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              color: Colors.indigo.shade700,
-                                              fontStyle: FontStyle.italic,
-                                            ),
-                                          ),
-                                        ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Bookmarked on $formattedDate',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey.shade600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.share,
-                                          color: Colors.indigo),
-                                      onPressed: () => _shareBookmark(
-                                          context, bookmark, devotional),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete,
-                                          color: Colors.red),
-                                      onPressed: () => _deleteBookmark(
-                                          context, bookmark['id'].toString()),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              elevation: 2,
+              child: InkWell(
+                onTap: () {
+                  // Show bottom sheet with devotional details
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(16)),
+                    ),
+                    builder: (context) => DevotionalDetailSheet(
+                      bookmark: bookmark,
+                      devotionalModel: devotional,
+                      onShare: () =>
+                          _shareBookmark(context, bookmark, devotional),
                     ),
                   );
                 },
-              );
-            });
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  title,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                if (verseReference.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(
+                                      verseReference,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.indigo.shade700,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                  ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Bookmarked on $formattedDate',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.share,
+                                    color: Colors.indigo),
+                                onPressed: () => _shareBookmark(
+                                    context, bookmark, devotional),
+                              ),
+                              IconButton(
+                                icon:
+                                    const Icon(Icons.delete, color: Colors.red),
+                                onPressed: () => _deleteBookmark(
+                                    context, bookmark['id'].toString()),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
       },
     );
   }

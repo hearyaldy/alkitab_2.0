@@ -1,12 +1,10 @@
-// lib/screens/bookmarks/widgets/bible_verse_detail_sheet.dart
+// lib/widgets/bible_verse_detail_sheet.dart
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../models/bookmark_model.dart';
-
 class BibleVerseDetailSheet extends StatelessWidget {
-  final BookmarkModel bookmark;
+  final Map<String, dynamic> bookmark;
   final VoidCallback onShare;
 
   const BibleVerseDetailSheet({
@@ -18,12 +16,14 @@ class BibleVerseDetailSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Get verse reference and text
-    final reference = bookmark.verseReference ?? 'Unknown Reference';
-    final verseText = bookmark.verseText ?? 'Verse text not available';
-    final notes = bookmark.notes;
-    final bookId = bookmark.bookId;
-    final chapterId = bookmark.chapterId;
-    final verseId = bookmark.verseId;
+    final reference = bookmark['reference'] ??
+        bookmark['verse_reference'] ??
+        'Unknown Reference';
+    final verseText = bookmark['verse_text'] ?? 'Verse text not available';
+    final notes = bookmark['notes'];
+    final bookId = bookmark['book_id'];
+    final chapterId = bookmark['chapter_id'];
+    final verseId = bookmark['verse_id'];
 
     return DraggableScrollableSheet(
       initialChildSize: 0.6, // Initial height (60% of screen)
