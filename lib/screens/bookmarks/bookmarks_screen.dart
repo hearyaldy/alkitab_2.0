@@ -6,8 +6,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/devotional_model.dart';
 import '../../services/devotional_service.dart';
+import '../../services/connectivity_service.dart';
 import '../../widgets/devotional_bookmarks_list.dart';
 import '../../widgets/bible_bookmarks_list.dart';
+import '../../widgets/notes_bookmarks_list.dart';
 
 class BookmarksScreen extends StatefulWidget {
   const BookmarksScreen({super.key});
@@ -21,6 +23,7 @@ class _BookmarksScreenState extends State<BookmarksScreen>
   late TabController _tabController;
   late Future<List<Map<String, dynamic>>> _bookmarkFuture;
   late Future<List<DevotionalModel>> _devotionalsFuture;
+  late Future<List<Map<String, dynamic>>> _notesFuture;
 
   final DevotionalService _devotionalService = DevotionalService();
   final MaterialColor _themeColor = Colors.indigo;
@@ -28,9 +31,10 @@ class _BookmarksScreenState extends State<BookmarksScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _bookmarkFuture = fetchBookmarks();
     _devotionalsFuture = _devotionalService.getAllDevotionals();
+    _notesFuture = fetchNotes();
   }
 
   @override
@@ -53,7 +57,25 @@ class _BookmarksScreenState extends State<BookmarksScreen>
 
     debugPrint("Bookmarks response: $response");
 
-    return response.map((e) => Map<String, dynamic>.from(e)).toList();
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  Future<List<Map<String, dynamic>>> fetchNotes() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) throw Exception("User not authenticated");
+
+    try {
+      final response = await Supabase.instance.client
+          .from('user_notes')
+          .select()
+          .eq('user_id', user.id)
+          .order('updated_at', ascending: false);
+
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint("Error fetching notes: $e");
+      return [];
+    }
   }
 
   @override
@@ -100,10 +122,10 @@ class _BookmarksScreenState extends State<BookmarksScreen>
                     fit: BoxFit.cover,
                   ),
                   Container(color: Colors.black.withOpacity(0.5)),
-                  Positioned(
+                  const Positioned(
                     left: 16,
                     bottom: 16,
-                    child: const Text(
+                    child: Text(
                       'My Bookmarks',
                       style: TextStyle(
                         fontSize: 24,
@@ -145,6 +167,10 @@ class _BookmarksScreenState extends State<BookmarksScreen>
                     text: 'Bible Verses',
                     icon: Icon(Icons.book),
                   ),
+                  Tab(
+                    text: 'Notes',
+                    icon: Icon(Icons.note),
+                  ),
                 ],
                 indicatorColor: Colors.white,
                 labelColor: Colors.white,
@@ -185,7 +211,7 @@ class _BookmarksScreenState extends State<BookmarksScreen>
                         );
                       }),
 
-                  // Bible Verses Tab
+                  // Bible Verses Tab - using Widget directly
                   BibleBookmarksList(
                     bookmarkFuture: _bookmarkFuture,
                     onRefresh: () {
@@ -194,6 +220,33 @@ class _BookmarksScreenState extends State<BookmarksScreen>
                       });
                     },
                   ),
+
+                  // Notes Tab
+                  FutureBuilder<List<DevotionalModel>>(
+                      future: _devotionalsFuture,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                              child: CircularProgressIndicator());
+                        }
+
+                        final devotionals = snapshot.data ?? [];
+
+                        return NotesBookmarksList(
+                          notesFuture: _notesFuture,
+                          devotionals: devotionals,
+                          onRefresh: () {
+                            setState(() {
+                              _notesFuture = fetchNotes();
+                              _devotionalsFuture =
+                                  _devotionalService.refreshCache().then((_) {
+                                return _devotionalService.getAllDevotionals();
+                              });
+                            });
+                          },
+                        );
+                      }),
                 ],
               ),
             ),

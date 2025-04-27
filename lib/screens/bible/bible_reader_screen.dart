@@ -159,26 +159,24 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
           .eq('user_id', user.id)
           .eq('type', 'bible');
 
-      if (response is List) {
-        final Set<String> supabaseBookmarks = {};
+      final Set<String> supabaseBookmarks = {};
 
-        for (final bookmark in response) {
-          final bookId = bookmark['book_id'];
-          final chapterId = bookmark['chapter_id'];
-          final verseId = bookmark['verse_id'];
+      for (final bookmark in response) {
+        final bookId = bookmark['book_id'];
+        final chapterId = bookmark['chapter_id'];
+        final verseId = bookmark['verse_id'];
 
-          if (bookId != null && chapterId != null && verseId != null) {
-            supabaseBookmarks.add('${bookId}_${chapterId}_$verseId');
-          }
+        if (bookId != null && chapterId != null && verseId != null) {
+          supabaseBookmarks.add('${bookId}_${chapterId}_$verseId');
         }
-
-        // Update local bookmarks to include Supabase bookmarks
-        final prefs = await SharedPreferences.getInstance();
-        setState(() {
-          _bookmarks = supabaseBookmarks;
-        });
-        prefs.setStringList('bookmarks', _bookmarks.toList());
       }
+
+      // Update local bookmarks to include Supabase bookmarks
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _bookmarks = supabaseBookmarks;
+      });
+      prefs.setStringList('bookmarks', _bookmarks.toList());
     } catch (e) {
       debugPrint('Error syncing bookmarks: $e');
     }

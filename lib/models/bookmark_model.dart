@@ -1,5 +1,4 @@
 // lib/screens/bookmarks/models/bookmark_model.dart
-
 class BookmarkModel {
   final String id;
   final String userId;
@@ -12,8 +11,10 @@ class BookmarkModel {
   final int? chapterId;
   final int? verseId;
   final String? notes;
-  final String? contentId;
-  final DateTime createdAt;
+  final DateTime? createdAt;
+  final String? devotionalText;
+  final Map<String, dynamic>? reflectionQuestions;
+  final String? prayer;
 
   BookmarkModel({
     required this.id,
@@ -27,8 +28,10 @@ class BookmarkModel {
     this.chapterId,
     this.verseId,
     this.notes,
-    this.contentId,
-    required this.createdAt,
+    this.createdAt,
+    this.devotionalText,
+    this.reflectionQuestions,
+    this.prayer,
   });
 
   factory BookmarkModel.fromJson(Map<String, dynamic> json) {
@@ -48,10 +51,12 @@ class BookmarkModel {
           ? int.tryParse(json['verse_id'].toString())
           : null,
       notes: json['notes'],
-      contentId: json['content_id'],
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
-          : DateTime.now(),
+      createdAt: json['date_created'] != null
+          ? DateTime.parse(json['date_created'])
+          : null,
+      devotionalText: json['devotional_text'],
+      reflectionQuestions: json['reflection_questions'],
+      prayer: json['prayer'],
     );
   }
 
@@ -68,8 +73,10 @@ class BookmarkModel {
       'chapter_id': chapterId,
       'verse_id': verseId,
       'notes': notes,
-      'content_id': contentId,
-      'created_at': createdAt.toIso8601String(),
+      'date_created': createdAt?.toIso8601String(),
+      'devotional_text': devotionalText,
+      'reflection_questions': reflectionQuestions,
+      'prayer': prayer,
     };
   }
 
@@ -92,7 +99,9 @@ class BookmarkModel {
 
   String get formattedDate {
     try {
-      return '${createdAt.day}/${createdAt.month}/${createdAt.year}';
+      return createdAt != null
+          ? '${createdAt!.day}/${createdAt!.month}/${createdAt!.year}'
+          : 'Date unknown';
     } catch (e) {
       return 'Date unknown';
     }

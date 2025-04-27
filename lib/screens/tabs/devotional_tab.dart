@@ -1,5 +1,6 @@
 // lib/screens/tabs/devotional_tab.dart
 
+import 'dart:async'; // Import for Timer class
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:share_plus/share_plus.dart';
@@ -25,6 +26,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
 
   final int _readingStreak =
       3; // This would be dynamically calculated in a real app
+  Timer? _autoSaveTimer; // Fixed: Declare as class property with proper type
 
   final TextEditingController _notesController = TextEditingController();
 
@@ -40,6 +42,20 @@ class _DevotionalTabState extends State<DevotionalTab> {
     _loadDevotionals();
     _loadBookmarkedVerses();
     _loadSavedNote();
+
+    // Setup auto-save timer for notes
+    _autoSaveTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (_notesController.text.isNotEmpty) {
+        _saveNote(_notesController.text);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _autoSaveTimer?.cancel(); // Cancel timer when disposing
+    _notesController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadSavedNote() async {
@@ -241,8 +257,10 @@ $text
             background: Stack(
               fit: StackFit.expand,
               children: [
-                Image.asset('assets/images/header_image.png',
-                    fit: BoxFit.cover),
+                Image.asset(
+                  'assets/images/header_image.png',
+                  fit: BoxFit.cover, // Fixed: coverfit -> cover
+                ),
                 Container(color: Colors.black.withOpacity(0.5)),
               ],
             ),
@@ -410,7 +428,7 @@ $text
               TextField(
                 controller: _notesController,
                 maxLines: 3,
-                onSubmitted: _saveNote,
+                onChanged: _saveNote,
                 decoration: InputDecoration(
                   hintText: 'Write your thoughts or prayer here...',
                   border: OutlineInputBorder(

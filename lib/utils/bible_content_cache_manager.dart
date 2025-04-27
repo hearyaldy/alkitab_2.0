@@ -6,7 +6,7 @@ class BibleContentCacheManager {
 
   // Generate a unique box name for specific version, book, and chapter
   static String _getBoxName(String version, String bookId, int chapterId) {
-    return '${_boxPrefix}${version}_${bookId}_$chapterId';
+    return '$_boxPrefix${version}_${bookId}_$chapterId';
   }
 
   // Cache verses for a specific book and chapter

@@ -3,7 +3,6 @@ import 'package:http/http.dart' as http;
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:alkitab_2_0/models/bible_model.dart';
-import 'package:alkitab_2_0/services/local_storage_service.dart';
 
 class BibleService {
   static const versionUrls = {
