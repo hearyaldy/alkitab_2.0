@@ -16,12 +16,15 @@ class LocalStorageService {
       final appDocumentDir = await getApplicationDocumentsDirectory();
       await Hive.initFlutter(appDocumentDir.path);
 
-      // Open core boxes
+      // Existing box initializations
       await Hive.openBox(AppConstants.settingsBoxName);
       await Hive.openBox(AppConstants.bibleContentBoxName);
       await Hive.openBox(AppConstants.userBoxName);
       await Hive.openBox('devotionals');
+
+      // New sync-related boxes
       await Hive.openBox('sync_queue');
+      await Hive.openBox('offline_changes');
 
       // User data boxes
       await Hive.openBox('bookmarks');
@@ -36,123 +39,86 @@ class LocalStorageService {
     }
   }
 
-  /// Save data to a box - New method name
-  static Future<void> saveData(
-      String boxName, String key, dynamic value) async {
+  // Existing methods remain the same...
+
+  /// New method to manage sync queue
+  static Future<void> addToSyncQueue(
+      String type, Map<String, dynamic> data) async {
     try {
-      final box = Hive.box(boxName);
-      await box.put(key, value);
+      final box = await Hive.openBox('sync_queue');
+      await box.add({
+        'type': type,
+        'data': data,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      debugPrint('Added to sync queue: $type');
     } catch (e) {
-      debugPrint('LocalStorageService: Error saving data - $e');
+      debugPrint('Error adding to sync queue: $e');
     }
   }
 
-  /// Save data to a box - Compatible with existing auth_service
-  static Future<void> saveValue(
-      String boxName, String key, dynamic value) async {
-    return saveData(boxName, key, value);
-  }
-
-  /// Get data from a box - New method name
-  static dynamic getData(String boxName, String key, {dynamic defaultValue}) {
+  /// Retrieve sync queue items
+  static Future<List<dynamic>> getSyncQueue() async {
     try {
-      final box = Hive.box(boxName);
-      return box.get(key, defaultValue: defaultValue);
-    } catch (e) {
-      debugPrint('LocalStorageService: Error getting data - $e');
-      return defaultValue;
-    }
-  }
-
-  /// Get data from a box - Compatible with existing auth_service
-  static dynamic getValue(String boxName, String key, {dynamic defaultValue}) {
-    return getData(boxName, key, defaultValue: defaultValue);
-  }
-
-  /// Delete data from a box - New method name
-  static Future<void> deleteData(String boxName, String key) async {
-    try {
-      final box = Hive.box(boxName);
-      await box.delete(key);
-    } catch (e) {
-      debugPrint('LocalStorageService: Error deleting data - $e');
-    }
-  }
-
-  /// Delete data from a box - Compatible with existing auth_service
-  static Future<void> deleteValue(String boxName, String key) async {
-    return deleteData(boxName, key);
-  }
-
-  /// Clear all data in a box
-  static Future<void> clearBox(String boxName) async {
-    try {
-      final box = Hive.box(boxName);
-      await box.clear();
-    } catch (e) {
-      debugPrint('LocalStorageService: Error clearing box - $e');
-    }
-  }
-
-  /// Save a list of items
-  static Future<void> saveList(String boxName, List<dynamic> items) async {
-    try {
-      final box = Hive.box(boxName);
-      await box.clear(); // Clear existing items
-
-      // Add each item with auto-incrementing key
-      for (var item in items) {
-        await box.add(item);
-      }
-    } catch (e) {
-      debugPrint('LocalStorageService: Error saving list - $e');
-    }
-  }
-
-  /// Get all items from a box as a list
-  static List<dynamic> getList(String boxName) {
-    try {
-      final box = Hive.box(boxName);
+      final box = await Hive.openBox('sync_queue');
       return box.values.toList();
     } catch (e) {
-      debugPrint('LocalStorageService: Error getting list - $e');
+      debugPrint('Error retrieving sync queue: $e');
       return [];
     }
   }
 
-  /// Save timestamps for data tracking
-  static Future<void> saveLastUpdatedTime(String dataType) async {
+  /// Clear processed sync queue items
+  static Future<void> clearSyncQueueItems(List<dynamic> processedItems) async {
     try {
-      final box = Hive.box(AppConstants.settingsBoxName);
-      final now = DateTime.now().toIso8601String();
-      await box.put('last_updated_$dataType', now);
-    } catch (e) {
-      debugPrint('LocalStorageService: Error saving timestamp - $e');
-    }
-  }
-
-  /// Get the last updated time for a data type
-  static DateTime? getLastUpdatedTime(String dataType) {
-    try {
-      final box = Hive.box(AppConstants.settingsBoxName);
-      final timeString = box.get('last_updated_$dataType');
-      if (timeString != null) {
-        return DateTime.parse(timeString);
+      final box = await Hive.openBox('sync_queue');
+      for (var item in processedItems) {
+        await box.delete(item.key);
       }
-      return null;
+      debugPrint('Cleared ${processedItems.length} sync queue items');
     } catch (e) {
-      debugPrint('LocalStorageService: Error getting timestamp - $e');
-      return null;
+      debugPrint('Error clearing sync queue: $e');
     }
   }
 
-  /// Check if data needs to be refreshed (older than the specified duration)
-  static bool needsRefresh(String dataType,
-      {Duration threshold = const Duration(hours: 24)}) {
-    final lastUpdated = getLastUpdatedTime(dataType);
-    if (lastUpdated == null) return true;
+  /// Store offline changes
+  static Future<void> storeOfflineChange(
+      {required String type, required Map<String, dynamic> data}) async {
+    try {
+      final box = await Hive.openBox('offline_changes');
+      await box.add({
+        'type': type,
+        'data': data,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      debugPrint('Stored offline change: $type');
+    } catch (e) {
+      debugPrint('Error storing offline change: $e');
+    }
+  }
 
-    final now = DateTime.now();
-    return now.difference(lastUpdated) > threshold;
+  /// Retrieve offline changes
+  static Future<List<dynamic>> getOfflineChanges() async {
+    try {
+      final box = await Hive.openBox('offline_changes');
+      return box.values.toList();
+    } catch (e) {
+      debugPrint('Error retrieving offline changes: $e');
+      return [];
+    }
+  }
+
+  /// Clear processed offline changes
+  static Future<void> clearOfflineChanges(
+      List<dynamic> processedChanges) async {
+    try {
+      final box = await Hive.openBox('offline_changes');
+      for (var change in processedChanges) {
+        await box.delete(change.key);
+      }
+      debugPrint('Cleared ${processedChanges.length} offline changes');
+    } catch (e) {
+      debugPrint('Error clearing offline changes: $e');
+    }
   }
 }

@@ -3,24 +3,28 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/devotional_model.dart';
 import '../../services/devotional_service.dart';
+import '../../services/sync_queue_processor.dart';
+import '../../providers/sync_providers.dart';
 import '../../services/connectivity_service.dart';
-// Use aliases to avoid ambiguous imports
+
+// Import existing widgets
 import '../../widgets/devotional_bookmarks_list.dart'
     show DevotionalBookmarksList;
 import '../../widgets/bible_bookmarks_list.dart' show BibleBookmarksList;
 import '../../widgets/notes_bookmarks_list.dart' show NotesBookmarksList;
 
-class BookmarksScreen extends StatefulWidget {
+class BookmarksScreen extends ConsumerStatefulWidget {
   const BookmarksScreen({super.key});
 
   @override
-  State<BookmarksScreen> createState() => _BookmarksScreenState();
+  ConsumerState<BookmarksScreen> createState() => _BookmarksScreenState();
 }
 
-class _BookmarksScreenState extends State<BookmarksScreen>
+class _BookmarksScreenState extends ConsumerState<BookmarksScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   late Future<List<Map<String, dynamic>>> _bookmarkFuture;
@@ -82,6 +86,9 @@ class _BookmarksScreenState extends State<BookmarksScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Watch sync status
+    final syncStatus = ref.watch(syncQueueStatusProvider);
+
     return Scaffold(
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: 2,
@@ -113,7 +120,30 @@ class _BookmarksScreenState extends State<BookmarksScreen>
       body: SafeArea(
         child: Column(
           children: [
-            // Header image section
+            // Sync Status Indicator
+            syncStatus.when(
+              data: (items) => items.isNotEmpty
+                  ? Container(
+                      color: Colors.yellow[100],
+                      padding: const EdgeInsets.all(8),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.sync, color: Colors.orange),
+                          const SizedBox(width: 8),
+                          Text('${items.length} items pending sync'),
+                        ],
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+              loading: () => const SizedBox.shrink(),
+              error: (error, stack) => Container(
+                color: Colors.red[100],
+                padding: const EdgeInsets.all(8),
+                child: Text('Sync Error: $error'),
+              ),
+            ),
+
+            // Existing body content remains the same
             SizedBox(
               height: 150,
               child: Stack(
@@ -155,7 +185,7 @@ class _BookmarksScreenState extends State<BookmarksScreen>
               ),
             ),
 
-            // Tab bar
+            // Existing tab bar and content
             Container(
               color: _themeColor,
               child: TabBar(
@@ -180,7 +210,7 @@ class _BookmarksScreenState extends State<BookmarksScreen>
               ),
             ),
 
-            // Tab content
+            // Existing tab content remains the same
             Expanded(
               child: TabBarView(
                 controller: _tabController,

@@ -10,6 +10,7 @@ import 'config/theme.dart';
 import 'providers/theme_provider.dart';
 import 'services/local_storage_service.dart';
 import 'services/connectivity_service.dart';
+import 'services/sync_service.dart';
 import 'models/bible_model.dart'; // Ensure this model is updated with Hive annotations
 
 Future<void> main() async {
@@ -26,7 +27,21 @@ Future<void> main() async {
     _registerHiveAdapters();
 
     // Initialize connectivity service
-    ConnectivityService();
+    final connectivityService = ConnectivityService();
+
+    // Initialize sync service
+    final syncService = SyncService();
+
+    // Listen for connectivity changes and trigger sync
+    connectivityService.connectionStatusStream.listen((isOnline) {
+      if (isOnline) {
+        // Perform sync when online
+        syncService.performPeriodicSync();
+      }
+    });
+
+    // Start periodic background sync
+    syncService.startBackgroundSync();
 
     // Load environment variables
     await dotenv.load();
