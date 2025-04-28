@@ -1,13 +1,15 @@
+// lib/screens/tabs/home_tab.dart
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:go_router/go_router.dart';
 
 class HomeTab extends StatefulWidget {
-  const HomeTab({super.key});
+  const HomeTab({Key? key}) : super(key: key);
 
   @override
   State<HomeTab> createState() => _HomeTabState();
@@ -18,6 +20,10 @@ class _HomeTabState extends State<HomeTab> {
   List<Map<String, dynamic>> _devotionals = [];
   Map<String, dynamic>? _todayDevo;
   List<Map<String, dynamic>> _recentReadings = [];
+
+  static const _cacheKey = 'cached_devotionals';
+  static const _cacheTimestampKey = 'cached_devotionals_timestamp';
+  static const _cacheExpiryDays = 7;
 
   @override
   void initState() {
@@ -30,7 +36,30 @@ class _HomeTabState extends State<HomeTab> {
     await _loadReadingHistory();
   }
 
-  Future<void> _loadDevotionals() async {
+  Future<void> _loadDevotionals({bool forceRefresh = false}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final cachedDevosJson = prefs.getString(_cacheKey);
+    final cachedTimestamp = prefs.getInt(_cacheTimestampKey);
+
+    final isCacheValid = cachedTimestamp != null &&
+        DateTime.now()
+                .difference(
+                    DateTime.fromMillisecondsSinceEpoch(cachedTimestamp))
+                .inDays <
+            _cacheExpiryDays;
+
+    if (!forceRefresh && cachedDevosJson != null && isCacheValid) {
+      try {
+        final List<dynamic> parsed = jsonDecode(cachedDevosJson);
+        _devotionals = parsed.cast<Map<String, dynamic>>();
+        _todayDevo = _pickTodayDevo(_devotionals);
+        debugPrint('Loaded devotionals from cache.');
+        return;
+      } catch (e) {
+        debugPrint('Error parsing cached devotionals: $e');
+      }
+    }
+
     try {
       final storage = Supabase.instance.client.storage;
       final files = await storage.from('devotional-readings').list(path: '');
@@ -48,8 +77,20 @@ class _HomeTabState extends State<HomeTab> {
 
       _devotionals = combined;
       _todayDevo = _pickTodayDevo(combined);
+
+      await prefs.setString(_cacheKey, jsonEncode(_devotionals));
+      await prefs.setInt(
+          _cacheTimestampKey, DateTime.now().millisecondsSinceEpoch);
+      debugPrint('Downloaded and cached devotionals.');
     } catch (e) {
       debugPrint('Error loading devotionals: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text(
+                  'Failed to refresh devotionals. Please check your connection.')),
+        );
+      }
     }
   }
 
@@ -71,6 +112,16 @@ class _HomeTabState extends State<HomeTab> {
         .toList();
   }
 
+  Future<void> _refreshDevotionals() async {
+    await _loadDevotionals(forceRefresh: true);
+    if (mounted) {
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Devotionals refreshed successfully.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<void>(
@@ -79,7 +130,10 @@ class _HomeTabState extends State<HomeTab> {
         if (snapshot.connectionState != ConnectionState.done) {
           return const Center(child: CircularProgressIndicator());
         }
-        return _buildMainContent(context);
+        return RefreshIndicator(
+          onRefresh: _refreshDevotionals,
+          child: _buildMainContent(context),
+        );
       },
     );
   }
@@ -99,6 +153,12 @@ class _HomeTabState extends State<HomeTab> {
         SliverAppBar(
           pinned: true,
           expandedHeight: 200,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _refreshDevotionals,
+            ),
+          ],
           flexibleSpace: FlexibleSpaceBar(
             titlePadding: const EdgeInsets.only(left: 16, bottom: 12),
             title: Row(
@@ -190,50 +250,6 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  void _showDevotionalDetails(Map<String, dynamic> devo) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => DraggableScrollableSheet(
-        expand: false,
-        builder: (context, scrollController) => SingleChildScrollView(
-          controller: scrollController,
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(devo['title'] ?? 'Untitled',
-                  style: const TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text(devo['verse_reference'] ?? '',
-                  style: const TextStyle(fontStyle: FontStyle.italic)),
-              const SizedBox(height: 16),
-              Text(devo['devotional_text'] ?? '',
-                  style: const TextStyle(height: 1.5)),
-              const SizedBox(height: 16),
-              const Text('Prayer:',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              Text(devo['prayer'] ?? '',
-                  style: const TextStyle(fontStyle: FontStyle.italic)),
-              const SizedBox(height: 24),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Close'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _verseOfDayCard() {
     return Card(
       elevation: 4,
@@ -257,8 +273,8 @@ class _HomeTabState extends State<HomeTab> {
                   icon: const Icon(Icons.share),
                   tooltip: 'Share verse',
                   onPressed: () {
-                    final verse = _todayDevo!['verse_text'] ?? '';
-                    final reference = _todayDevo!['verse_reference'] ?? '';
+                    final verse = _todayDevo?['verse_text'] ?? '';
+                    final reference = _todayDevo?['verse_reference'] ?? '';
                     final content = '"$verse"\n\n📖 $reference';
                     Share.share(content, subject: 'Verse of the Day');
                   },
@@ -267,12 +283,12 @@ class _HomeTabState extends State<HomeTab> {
             ),
             const Divider(),
             const SizedBox(height: 8),
-            Text('"${_todayDevo!['verse_text']}"',
+            Text('"${_todayDevo?['verse_text'] ?? ''}"',
                 style:
                     const TextStyle(fontSize: 16, fontStyle: FontStyle.italic)),
             const SizedBox(height: 8),
             Text(
-              _todayDevo!['verse_reference'] ?? '',
+              _todayDevo?['verse_reference'] ?? '',
               style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -384,11 +400,10 @@ class _HomeTabState extends State<HomeTab> {
             Container(
               height: 8,
               decoration: BoxDecoration(
-                color: color,
-                borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(12),
-                    topRight: Radius.circular(12)),
-              ),
+                  color: color,
+                  borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(12),
+                      topRight: Radius.circular(12))),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -423,6 +438,48 @@ class _HomeTabState extends State<HomeTab> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _showDevotionalDetails(Map<String, dynamic> devo) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        builder: (context, scrollController) => SingleChildScrollView(
+          controller: scrollController,
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(devo['title'] ?? 'Untitled',
+                  style: const TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text(devo['verse_reference'] ?? '',
+                  style: const TextStyle(fontStyle: FontStyle.italic)),
+              const SizedBox(height: 16),
+              Text(devo['devotional_text'] ?? '',
+                  style: const TextStyle(height: 1.5)),
+              const SizedBox(height: 16),
+              const Text('Prayer:',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              Text(devo['prayer'] ?? '',
+                  style: const TextStyle(fontStyle: FontStyle.italic)),
+              const SizedBox(height: 24),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Close')),
+              ),
+            ],
+          ),
         ),
       ),
     );
