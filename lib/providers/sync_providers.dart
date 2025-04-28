@@ -1,4 +1,5 @@
 // lib/providers/sync_providers.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -13,8 +14,7 @@ final connectivityServiceProvider = Provider<ConnectivityService>((ref) {
 
 // Sync Queue Processor Provider
 final syncQueueProcessorProvider = Provider<SyncQueueProcessor>((ref) {
-  final connectivityService = ref.watch(connectivityServiceProvider);
-  return SyncQueueProcessor(connectivityService);
+  return SyncQueueProcessor();
 });
 
 // Stream provider for sync queue status
@@ -23,10 +23,8 @@ final syncQueueStatusProvider = StreamProvider<List<dynamic>>((ref) async* {
     try {
       final box = await Hive.openBox('sync_queue');
 
-      // Yield current sync queue items
       yield box.values.toList();
 
-      // Wait for some time before checking again
       await Future.delayed(const Duration(seconds: 30));
     } catch (e) {
       debugPrint('Error in sync queue status provider: $e');
@@ -35,24 +33,22 @@ final syncQueueStatusProvider = StreamProvider<List<dynamic>>((ref) async* {
   }
 });
 
-// Sync Manager Provider for centralized sync operations
+// Sync Manager for centralized sync operations
 class SyncManager {
   final SyncQueueProcessor _syncQueueProcessor;
   final ConnectivityService _connectivityService;
 
   SyncManager(this._syncQueueProcessor, this._connectivityService) {
-    // Start periodic sync when created
-    _syncQueueProcessor.startPeriodicSync();
+    // Optionally you can start periodic sync here manually if you want
+    // _syncQueueProcessor.startBackgroundSync();
   }
 
-  // Manually trigger sync
   Future<void> triggerSync() async {
     if (_connectivityService.isOnline) {
       await _syncQueueProcessor.processQueue();
     }
   }
 
-  // Add items to sync queue
   Future<void> addToSyncQueue({
     required SyncOperationType type,
     required Map<String, dynamic> data,

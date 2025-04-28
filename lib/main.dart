@@ -1,9 +1,11 @@
+// lib/main.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:hive_flutter/hive_flutter.dart'; // Add this import
+import 'package:hive_flutter/hive_flutter.dart';
 
 import 'router.dart';
 import 'config/theme.dart';
@@ -11,45 +13,34 @@ import 'providers/theme_provider.dart';
 import 'services/local_storage_service.dart';
 import 'services/connectivity_service.dart';
 import 'services/sync_service.dart';
-import 'models/bible_model.dart'; // Ensure this model is updated with Hive annotations
+import 'models/bible_model.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  try {
-    // Initialize Hive for Flutter
-    await Hive.initFlutter();
+  // 🚨 TEMPORARY: Clear Hive data immediately during development
+  await Hive.initFlutter();
+  await Hive.deleteFromDisk();
 
-    // Initialize local storage first
+  try {
     await LocalStorageService.initialize();
 
-    // Register Hive adapters
     _registerHiveAdapters();
 
-    // Initialize connectivity service
     final connectivityService = ConnectivityService();
-
-    // Initialize sync service
     final syncService = SyncService();
 
-    // Listen for connectivity changes and trigger sync
     connectivityService.connectionStatusStream.listen((isOnline) {
       if (isOnline) {
-        // Perform sync when online
         syncService.performPeriodicSync();
       }
     });
 
-    // Start periodic background sync
     syncService.startBackgroundSync();
 
-    // Load environment variables
     await dotenv.load();
-
-    // Initialize date formatting
     await initializeDateFormatting('ms', null);
 
-    // Initialize Supabase
     await Supabase.initialize(
       url: dotenv.env['SUPABASE_URL']!,
       anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
@@ -57,21 +48,22 @@ Future<void> main() async {
 
     runApp(const ProviderScope(child: MyApp()));
   } catch (e) {
-    // Centralized error handling
     _handleInitializationError(e);
   }
 }
 
-// Register Hive type adapters
 void _registerHiveAdapters() {
-  // Ensure these adapters are generated
-  // Run: flutter pub run build_runner build
-  Hive.registerAdapter(BibleBookAdapter());
-  Hive.registerAdapter(BibleVerseAdapter());
-  Hive.registerAdapter(BibleVersionAdapter());
+  if (!Hive.isAdapterRegistered(0)) {
+    Hive.registerAdapter(BibleBookAdapter());
+  }
+  if (!Hive.isAdapterRegistered(1)) {
+    Hive.registerAdapter(BibleVerseAdapter());
+  }
+  if (!Hive.isAdapterRegistered(2)) {
+    Hive.registerAdapter(BibleVersionAdapter());
+  }
 }
 
-// Centralized error handling for initialization
 void _handleInitializationError(Object error) {
   runApp(
     MaterialApp(
@@ -98,7 +90,7 @@ void _handleInitializationError(Object error) {
               ),
               const SizedBox(height: 16),
               ElevatedButton(
-                onPressed: () => main(), // Retry initialization
+                onPressed: () => main(),
                 child: const Text('Retry'),
               ),
             ],
@@ -124,7 +116,6 @@ class MyApp extends ConsumerWidget {
       themeMode: themeMode,
       routerConfig: router,
       builder: (context, child) {
-        // Update error widget builder
         ErrorWidget.builder = (FlutterErrorDetails details) {
           return Scaffold(
             body: Center(

@@ -19,9 +19,11 @@ class DevotionalService {
   List<DevotionalModel> _cachedDevotionals = [];
   DateTime? _lastLoaded;
 
+  // Access Supabase safely
+  SupabaseClient get _supabase => Supabase.instance.client;
+
   // Get all devotionals
   Future<List<DevotionalModel>> getAllDevotionals() async {
-    // Check if we already have cached data that's less than 1 hour old
     if (_cachedDevotionals.isNotEmpty &&
         _lastLoaded != null &&
         DateTime.now().difference(_lastLoaded!).inHours < 1) {
@@ -29,7 +31,7 @@ class DevotionalService {
     }
 
     try {
-      final storage = Supabase.instance.client.storage;
+      final storage = _supabase.storage;
       final files = await storage.from('devotional-readings').list(path: '');
 
       final List<DevotionalModel> devotionals = [];
@@ -53,7 +55,6 @@ class DevotionalService {
         }
       }
 
-      // Update cache
       _cachedDevotionals = devotionals;
       _lastLoaded = DateTime.now();
 
@@ -66,16 +67,14 @@ class DevotionalService {
 
   // Get a specific devotional by ID
   Future<DevotionalModel?> getDevotionalById(String id) async {
-    // Check cache first
     if (_cachedDevotionals.isNotEmpty) {
       try {
         return _cachedDevotionals.firstWhere((d) => d.id == id);
       } catch (e) {
-        // Not found in cache, continue to fetch all
+        // Not found in cache
       }
     }
 
-    // Load all and then find
     final devotionals = await getAllDevotionals();
     try {
       return devotionals.firstWhere((d) => d.id == id);
@@ -95,12 +94,11 @@ class DevotionalService {
     return devotionals[index];
   }
 
-  // Get featured or recent devotionals (for homepage)
+  // Get featured or recent devotionals
   Future<List<DevotionalModel>> getFeaturedDevotionals({int count = 5}) async {
     final devotionals = await getAllDevotionals();
     if (devotionals.isEmpty) return [];
 
-    // Sort by date and take the most recent ones
     devotionals.sort((a, b) => b.date.compareTo(a.date));
     return devotionals.take(count).toList();
   }

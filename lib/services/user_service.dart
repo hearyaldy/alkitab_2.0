@@ -1,3 +1,4 @@
+// lib/services/user_service.dart
 import 'dart:io';
 import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -6,9 +7,8 @@ import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
 
 class UserService {
-  final _supabase = Supabase.instance.client;
+  SupabaseClient get _supabase => Supabase.instance.client;
 
-  // Fetch user profile from Supabase
   Future<UserModel?> fetchUserProfile() async {
     try {
       final user = _supabase.auth.currentUser;
@@ -33,7 +33,6 @@ class UserService {
     }
   }
 
-  // Upload profile photo
   Future<String?> uploadProfilePhoto(File imageFile) async {
     try {
       final user = _supabase.auth.currentUser;
@@ -41,11 +40,9 @@ class UserService {
 
       final fileName = 'profile-images/profile_${user.id}.jpg';
 
-      // Upload the file
       await _supabase.storage.from('profile-images').upload(fileName, imageFile,
           fileOptions: const FileOptions(upsert: true));
 
-      // Get public URL
       final publicUrl =
           _supabase.storage.from('profile-images').getPublicUrl(fileName);
 
@@ -56,7 +53,6 @@ class UserService {
     }
   }
 
-  // Update user profile
   Future<UserModel?> updateProfile({
     String? displayName,
     String? preferredBibleVersion,
@@ -66,7 +62,6 @@ class UserService {
       final user = _supabase.auth.currentUser;
       if (user == null) return null;
 
-      // Prepare user metadata updates
       final userMetadata = <String, dynamic>{};
 
       if (displayName != null) {
@@ -79,12 +74,10 @@ class UserService {
         userMetadata['profile_photo_url'] = profilePhotoUrl;
       }
 
-      // Update Supabase user metadata
       await _supabase.auth.updateUser(
         UserAttributes(data: userMetadata),
       );
 
-      // Update local preferences
       final prefs = await SharedPreferences.getInstance();
       if (displayName != null) {
         await prefs.setString('user_display_name', displayName);
@@ -96,7 +89,6 @@ class UserService {
         await prefs.setString('profile_photo_url', profilePhotoUrl);
       }
 
-      // Fetch and return updated profile
       return await fetchUserProfile();
     } catch (e) {
       debugPrint('Error updating user profile: $e');
@@ -104,7 +96,6 @@ class UserService {
     }
   }
 
-  // Save last read position
   Future<void> saveLastReadPosition({
     required String bookId,
     required int chapterId,
@@ -118,7 +109,7 @@ class UserService {
       final lastReadPosition = {
         'bookId': bookId,
         'chapterId': chapterId,
-        'timestamp': DateTime.now().toIso8601String()
+        'timestamp': DateTime.now().toIso8601String(),
       };
 
       await prefs.setString(
@@ -128,7 +119,7 @@ class UserService {
         'last_read_position': {
           'book_id': bookId,
           'chapter_id': chapterId,
-          'timestamp': DateTime.now().toIso8601String()
+          'timestamp': DateTime.now().toIso8601String(),
         }
       }).eq('user_id', user.id);
     } catch (e) {
@@ -136,7 +127,6 @@ class UserService {
     }
   }
 
-  // Retrieve last read position
   Future<Map<String, dynamic>?> getLastReadPosition() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -162,23 +152,18 @@ class UserService {
     }
   }
 
-  // Delete user account
   Future<bool> deleteAccount() async {
     try {
       final user = _supabase.auth.currentUser;
       if (user == null) return false;
 
-      // Optional: Delete user-related data from other tables
       await _supabase.from('profiles').delete().eq('user_id', user.id);
 
-      // Delete user's profile image from storage
       final fileName = 'profile-images/profile_${user.id}.jpg';
       await _supabase.storage.from('profile-images').remove([fileName]);
 
-      // Delete the user account
       await _supabase.auth.admin.deleteUser(user.id);
 
-      // Clear local preferences
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
 
