@@ -1,3 +1,5 @@
+// lib/screens/home_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,11 +11,12 @@ import 'tabs/profile_tab.dart' as profile;
 
 class HomeScreen extends ConsumerStatefulWidget {
   final int tabIndex;
+  final StatefulNavigationShell shell;
 
   const HomeScreen({
     super.key,
     required this.tabIndex,
-    required StatefulNavigationShell shell,
+    required this.shell,
   });
 
   @override
@@ -24,11 +27,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   late int _selectedIndex;
   bool _isFloatingMenuOpen = false;
 
-  static final List<Widget> _tabs = [
-    const home.HomeTab(),
-    const BibleTab(),
-    const DevotionalTab(),
-    const profile.ProfileTab(),
+  final List<Widget> _tabs = const [
+    home.HomeTab(),
+    BibleTab(),
+    DevotionalTab(),
+    profile.ProfileTab(),
   ];
 
   @override
@@ -82,7 +85,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      body: _tabs[_selectedIndex],
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _tabs,
+      ),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         currentIndex: _selectedIndex,

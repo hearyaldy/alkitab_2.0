@@ -14,7 +14,7 @@ class HomeTab extends StatefulWidget {
 }
 
 class _HomeTabState extends State<HomeTab> {
-  bool _isLoading = true;
+  late Future<void> _initializationFuture;
   List<Map<String, dynamic>> _devotionals = [];
   Map<String, dynamic>? _todayDevo;
   List<Map<String, dynamic>> _recentReadings = [];
@@ -22,8 +22,12 @@ class _HomeTabState extends State<HomeTab> {
   @override
   void initState() {
     super.initState();
-    _loadDevotionals();
-    _loadReadingHistory();
+    _initializationFuture = _initializeData();
+  }
+
+  Future<void> _initializeData() async {
+    await _loadDevotionals();
+    await _loadReadingHistory();
   }
 
   Future<void> _loadDevotionals() async {
@@ -42,14 +46,10 @@ class _HomeTabState extends State<HomeTab> {
         }
       }
 
-      setState(() {
-        _devotionals = combined;
-        _todayDevo = _pickTodayDevo(combined);
-        _isLoading = false;
-      });
+      _devotionals = combined;
+      _todayDevo = _pickTodayDevo(combined);
     } catch (e) {
       debugPrint('Error loading devotionals: $e');
-      setState(() => _isLoading = false);
     }
   }
 
@@ -63,61 +63,28 @@ class _HomeTabState extends State<HomeTab> {
   Future<void> _loadReadingHistory() async {
     final prefs = await SharedPreferences.getInstance();
     final data = prefs.getStringList('last_readings') ?? [];
-    final List<Map<String, dynamic>> parsed = data
+    _recentReadings = data
         .map((e) => json.decode(e) as Map<String, dynamic>)
         .toList()
         .reversed
         .take(5)
         .toList();
-    setState(() => _recentReadings = parsed);
-  }
-
-  void _showDevotionalDetails(Map<String, dynamic> devo) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => DraggableScrollableSheet(
-        expand: false,
-        builder: (context, scrollController) => SingleChildScrollView(
-          controller: scrollController,
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(devo['title'] ?? 'Untitled',
-                  style: const TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text(devo['verse_reference'] ?? '',
-                  style: const TextStyle(fontStyle: FontStyle.italic)),
-              const SizedBox(height: 16),
-              Text(devo['devotional_text'] ?? '',
-                  style: const TextStyle(height: 1.5)),
-              const SizedBox(height: 16),
-              const Text('Prayer:',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              Text(devo['prayer'] ?? '',
-                  style: const TextStyle(fontStyle: FontStyle.italic)),
-              const SizedBox(height: 24),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Close'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
+    return FutureBuilder<void>(
+      future: _initializationFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        return _buildMainContent(context);
+      },
+    );
+  }
+
+  Widget _buildMainContent(BuildContext context) {
     final now = DateTime.now();
     final formattedDate = DateFormat.yMMMMd('ms').format(now);
     final dayName = DateFormat('EEEE', 'ms').format(now);
@@ -201,30 +168,69 @@ class _HomeTabState extends State<HomeTab> {
           ),
         ),
         SliverToBoxAdapter(
-          child: _isLoading || _todayDevo == null
-              ? const Center(
-                  child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: CircularProgressIndicator()))
-              : Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _verseOfDayCard(),
-                      const SizedBox(height: 24),
-                      _continueReadingSection(),
-                      const SizedBox(height: 24),
-                      _devotionalSection(),
-                      const SizedBox(height: 24),
-                      _sectionHeader(context, 'Reading Plans', onSeeAll: () {}),
-                      const SizedBox(height: 12),
-                      _readingPlansList(),
-                    ],
-                  ),
-                ),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _verseOfDayCard(),
+                const SizedBox(height: 24),
+                _continueReadingSection(),
+                const SizedBox(height: 24),
+                _devotionalSection(),
+                const SizedBox(height: 24),
+                _sectionHeader(context, 'Reading Plans', onSeeAll: () {}),
+                const SizedBox(height: 12),
+                _readingPlansList(),
+              ],
+            ),
+          ),
         ),
       ],
+    );
+  }
+
+  void _showDevotionalDetails(Map<String, dynamic> devo) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        builder: (context, scrollController) => SingleChildScrollView(
+          controller: scrollController,
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(devo['title'] ?? 'Untitled',
+                  style: const TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text(devo['verse_reference'] ?? '',
+                  style: const TextStyle(fontStyle: FontStyle.italic)),
+              const SizedBox(height: 16),
+              Text(devo['devotional_text'] ?? '',
+                  style: const TextStyle(height: 1.5)),
+              const SizedBox(height: 16),
+              const Text('Prayer:',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              Text(devo['prayer'] ?? '',
+                  style: const TextStyle(fontStyle: FontStyle.italic)),
+              const SizedBox(height: 24),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Close'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
