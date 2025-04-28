@@ -2,11 +2,11 @@
 
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 
 class HomeTab extends StatefulWidget {
   const HomeTab({Key? key}) : super(key: key);
@@ -17,18 +17,23 @@ class HomeTab extends StatefulWidget {
 
 class _HomeTabState extends State<HomeTab> {
   late Future<void> _initializationFuture;
+  final ImageProvider _headerImage =
+      const AssetImage('assets/images/header_image.png');
+
   List<Map<String, dynamic>> _devotionals = [];
   Map<String, dynamic>? _todayDevo;
   List<Map<String, dynamic>> _recentReadings = [];
-
-  static const _cacheKey = 'cached_devotionals';
-  static const _cacheTimestampKey = 'cached_devotionals_timestamp';
-  static const _cacheExpiryDays = 7;
 
   @override
   void initState() {
     super.initState();
     _initializationFuture = _initializeData();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    precacheImage(_headerImage, context);
   }
 
   Future<void> _initializeData() async {
@@ -38,17 +43,14 @@ class _HomeTabState extends State<HomeTab> {
 
   Future<void> _loadDevotionals({bool forceRefresh = false}) async {
     final prefs = await SharedPreferences.getInstance();
-    final cachedDevosJson = prefs.getString(_cacheKey);
-    final cachedTimestamp = prefs.getInt(_cacheTimestampKey);
+    final cachedDevosJson = prefs.getString('cached_devotionals');
+    final cacheTimestamp = prefs.getInt('cached_devotionals_time');
 
-    final isCacheValid = cachedTimestamp != null &&
-        DateTime.now()
-                .difference(
-                    DateTime.fromMillisecondsSinceEpoch(cachedTimestamp))
-                .inDays <
-            _cacheExpiryDays;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final cacheValid = cacheTimestamp != null &&
+        (now - cacheTimestamp) < 7 * 24 * 60 * 60 * 1000;
 
-    if (!forceRefresh && cachedDevosJson != null && isCacheValid) {
+    if (!forceRefresh && cachedDevosJson != null && cacheValid) {
       try {
         final List<dynamic> parsed = jsonDecode(cachedDevosJson);
         _devotionals = parsed.cast<Map<String, dynamic>>();
@@ -78,19 +80,12 @@ class _HomeTabState extends State<HomeTab> {
       _devotionals = combined;
       _todayDevo = _pickTodayDevo(combined);
 
-      await prefs.setString(_cacheKey, jsonEncode(_devotionals));
-      await prefs.setInt(
-          _cacheTimestampKey, DateTime.now().millisecondsSinceEpoch);
+      await prefs.setString('cached_devotionals', jsonEncode(_devotionals));
+      await prefs.setInt('cached_devotionals_time', now);
+
       debugPrint('Downloaded and cached devotionals.');
     } catch (e) {
       debugPrint('Error loading devotionals: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text(
-                  'Failed to refresh devotionals. Please check your connection.')),
-        );
-      }
     }
   }
 
@@ -114,11 +109,13 @@ class _HomeTabState extends State<HomeTab> {
 
   Future<void> _refreshDevotionals() async {
     await _loadDevotionals(forceRefresh: true);
+    setState(() {});
     if (mounted) {
-      setState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Devotionals refreshed successfully.')),
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Devotionals refreshed.')),
+        );
+      });
     }
   }
 
@@ -132,121 +129,118 @@ class _HomeTabState extends State<HomeTab> {
         }
         return RefreshIndicator(
           onRefresh: _refreshDevotionals,
-          child: _buildMainContent(context),
+          child: CustomScrollView(
+            slivers: [
+              _buildSliverAppBar(),
+              SliverToBoxAdapter(
+                child: _buildMainContent(),
+              ),
+            ],
+          ),
         );
       },
     );
   }
 
-  Widget _buildMainContent(BuildContext context) {
+  Widget _buildSliverAppBar() {
     final now = DateTime.now();
     final formattedDate = DateFormat.yMMMMd('ms').format(now);
     final dayName = DateFormat('EEEE', 'ms').format(now);
+
     final user = Supabase.instance.client.auth.currentUser;
     final displayName =
         user?.userMetadata?['full_name'] ?? user?.email ?? "Guest";
     final firstName = displayName.split(" ").first;
     final profileUrl = user?.userMetadata?['profile_url'];
 
-    return CustomScrollView(
-      slivers: [
-        SliverAppBar(
-          pinned: true,
-          expandedHeight: 200,
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _refreshDevotionals,
-            ),
-          ],
-          flexibleSpace: FlexibleSpaceBar(
-            titlePadding: const EdgeInsets.only(left: 16, bottom: 12),
-            title: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Expanded(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Alkitab 2.0',
-                          style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white)),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          Text(formattedDate,
-                              style: const TextStyle(
-                                  fontSize: 8, color: Colors.white70)),
-                          const Text(' | ',
-                              style: TextStyle(
-                                  fontSize: 8, color: Colors.white70)),
-                          Text(dayName,
-                              style: const TextStyle(
-                                  fontSize: 8, color: Colors.white70)),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(right: 16.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      CircleAvatar(
-                        radius: 16,
-                        backgroundImage: profileUrl != null
-                            ? NetworkImage(profileUrl)
-                            : null,
-                        backgroundColor: Colors.white,
-                        child: profileUrl == null
-                            ? const Icon(Icons.person,
-                                size: 16, color: Colors.indigo)
-                            : null,
-                      ),
-                      const SizedBox(height: 4),
-                      Text("Welcome, $firstName!",
-                          style: const TextStyle(
-                              fontSize: 8, color: Colors.white)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            background: Stack(
-              fit: StackFit.expand,
-              children: [
-                Image.asset('assets/images/header_image.png',
-                    fit: BoxFit.cover),
-                Container(color: Colors.black.withOpacity(0.4)),
-              ],
-            ),
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _verseOfDayCard(),
-                const SizedBox(height: 24),
-                _continueReadingSection(),
-                const SizedBox(height: 24),
-                _devotionalSection(),
-                const SizedBox(height: 24),
-                _sectionHeader(context, 'Reading Plans', onSeeAll: () {}),
-                const SizedBox(height: 12),
-                _readingPlansList(),
-              ],
-            ),
-          ),
+    return SliverAppBar(
+      pinned: true,
+      expandedHeight: 200,
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.refresh),
+          onPressed: _refreshDevotionals,
         ),
       ],
+      flexibleSpace: FlexibleSpaceBar(
+        titlePadding: const EdgeInsets.only(left: 16, bottom: 12),
+        title: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Alkitab 2.0',
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white)),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Text(formattedDate,
+                          style: const TextStyle(
+                              fontSize: 8, color: Colors.white70)),
+                      const Text(' | ',
+                          style: TextStyle(fontSize: 8, color: Colors.white70)),
+                      Text(dayName,
+                          style: const TextStyle(
+                              fontSize: 8, color: Colors.white70)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundImage:
+                        profileUrl != null ? NetworkImage(profileUrl) : null,
+                    backgroundColor: Colors.white,
+                    child: profileUrl == null
+                        ? const Icon(Icons.person,
+                            size: 16, color: Colors.indigo)
+                        : null,
+                  ),
+                  const SizedBox(height: 4),
+                  Text("Welcome, $firstName!",
+                      style: const TextStyle(fontSize: 8, color: Colors.white)),
+                ],
+              ),
+            ),
+          ],
+        ),
+        background: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image(image: _headerImage, fit: BoxFit.cover),
+            Container(color: Colors.black.withOpacity(0.4)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMainContent() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _verseOfDayCard(),
+          const SizedBox(height: 24),
+          _continueReadingSection(),
+          const SizedBox(height: 24),
+          _devotionalSection(),
+        ],
+      ),
     );
   }
 
@@ -283,7 +277,7 @@ class _HomeTabState extends State<HomeTab> {
             ),
             const Divider(),
             const SizedBox(height: 8),
-            Text('"${_todayDevo?['verse_text'] ?? ''}"',
+            Text('"${_todayDevo?['verse_text']}"',
                 style:
                     const TextStyle(fontSize: 16, fontStyle: FontStyle.italic)),
             const SizedBox(height: 8),
@@ -357,98 +351,13 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  Widget _sectionHeader(BuildContext context, String title,
-      {VoidCallback? onSeeAll}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(title,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-        TextButton(onPressed: onSeeAll, child: const Text('See All')),
-      ],
-    );
-  }
-
-  Widget _readingPlansList() {
-    return SizedBox(
-      height: 180,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: [
-          _buildReadingPlanCard('New Testament in 90 Days', '90 days',
-              '12% Complete', Colors.blue),
-          _buildReadingPlanCard(
-              'Wisdom Literature', '30 days', 'Not started', Colors.green),
-          _buildReadingPlanCard(
-              'Life of Jesus', '21 days', 'Not started', Colors.purple),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildReadingPlanCard(
-      String title, String duration, String progress, Color color) {
-    return Container(
-      width: 160,
-      margin: const EdgeInsets.only(right: 16),
-      child: Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        elevation: 3,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              height: 8,
-              decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(12),
-                      topRight: Radius.circular(12))),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 16),
-                      maxLines: 2),
-                  const SizedBox(height: 4),
-                  Text(duration,
-                      style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-                  const SizedBox(height: 4),
-                  Text(progress,
-                      style: TextStyle(
-                          color: progress.contains('Not')
-                              ? Colors.grey
-                              : Colors.green,
-                          fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 2),
-                  progress.contains('Not')
-                      ? ElevatedButton(
-                          onPressed: () {},
-                          style: ElevatedButton.styleFrom(
-                              minimumSize: const Size(double.infinity, 30),
-                              padding: EdgeInsets.zero),
-                          child: const Text('Start'),
-                        )
-                      : const LinearProgressIndicator(value: 0.12),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   void _showDevotionalDetails(Map<String, dynamic> devo) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
       builder: (ctx) => DraggableScrollableSheet(
         expand: false,
         builder: (context, scrollController) => SingleChildScrollView(
@@ -475,8 +384,9 @@ class _HomeTabState extends State<HomeTab> {
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Close')),
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Close'),
+                ),
               ),
             ],
           ),
