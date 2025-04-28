@@ -133,12 +133,15 @@ class _DevotionalTabState extends State<DevotionalTab> {
       'user_id': user.id,
       'verse_reference': verseRef,
       'title': devotional.title,
-      'content_id': devotional.id,
+      // No content_id field since it doesn't exist in the table
       'created_at': DateTime.now().toIso8601String(),
       'bookmark_type': 'devotional',
-      'chapter_id': 0,
-      'book_id': 0,
-      'verse_id': 0,
+      'devotional_text': devotional.content, // Store the content
+      'prayer': devotional.prayer, // Store the prayer
+      'chapter_id': 0, // Required field
+      'book_id': '', // Required field
+      'verse_id': 0, // Required field
+      'type': 'devotional',
     };
 
     try {

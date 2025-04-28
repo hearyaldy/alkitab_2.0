@@ -7,9 +7,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/devotional_model.dart';
 import '../../services/devotional_service.dart';
 import '../../services/connectivity_service.dart';
-import '../../widgets/devotional_bookmarks_list.dart';
-import '../../widgets/bible_bookmarks_list.dart';
-import '../../widgets/notes_bookmarks_list.dart';
+// Use aliases to avoid ambiguous imports
+import '../../widgets/devotional_bookmarks_list.dart'
+    show DevotionalBookmarksList;
+import '../../widgets/bible_bookmarks_list.dart' show BibleBookmarksList;
+import '../../widgets/notes_bookmarks_list.dart' show NotesBookmarksList;
 
 class BookmarksScreen extends StatefulWidget {
   const BookmarksScreen({super.key});
@@ -185,33 +187,33 @@ class _BookmarksScreenState extends State<BookmarksScreen>
                 children: [
                   // Devotionals Tab
                   FutureBuilder<List<DevotionalModel>>(
-                      future: _devotionalsFuture,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
-                              child: CircularProgressIndicator());
-                        }
+                    future: _devotionalsFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
 
-                        final devotionals = snapshot.data ?? [];
+                      final devotionals = snapshot.data ?? [];
 
-                        return DevotionalBookmarksList(
-                          bookmarkFuture: _bookmarkFuture,
-                          devotionals: devotionals,
-                          devotionalService: _devotionalService,
-                          onRefresh: () {
-                            setState(() {
-                              _bookmarkFuture = fetchBookmarks();
-                              _devotionalsFuture =
-                                  _devotionalService.refreshCache().then((_) {
-                                return _devotionalService.getAllDevotionals();
-                              });
+                      // Create the widget explicitly with its constructor
+                      return DevotionalBookmarksList(
+                        bookmarkFuture: _bookmarkFuture,
+                        devotionals: devotionals,
+                        devotionalService: _devotionalService,
+                        onRefresh: () {
+                          setState(() {
+                            _bookmarkFuture = fetchBookmarks();
+                            _devotionalsFuture =
+                                _devotionalService.refreshCache().then((_) {
+                              return _devotionalService.getAllDevotionals();
                             });
-                          },
-                        );
-                      }),
+                          });
+                        },
+                      );
+                    },
+                  ),
 
-                  // Bible Verses Tab - using Widget directly
+                  // Bible Verses Tab
                   BibleBookmarksList(
                     bookmarkFuture: _bookmarkFuture,
                     onRefresh: () {
@@ -223,30 +225,30 @@ class _BookmarksScreenState extends State<BookmarksScreen>
 
                   // Notes Tab
                   FutureBuilder<List<DevotionalModel>>(
-                      future: _devotionalsFuture,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
-                              child: CircularProgressIndicator());
-                        }
+                    future: _devotionalsFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
 
-                        final devotionals = snapshot.data ?? [];
+                      final devotionals = snapshot.data ?? [];
 
-                        return NotesBookmarksList(
-                          notesFuture: _notesFuture,
-                          devotionals: devotionals,
-                          onRefresh: () {
-                            setState(() {
-                              _notesFuture = fetchNotes();
-                              _devotionalsFuture =
-                                  _devotionalService.refreshCache().then((_) {
-                                return _devotionalService.getAllDevotionals();
-                              });
+                      // Create the widget explicitly with its constructor
+                      return NotesBookmarksList(
+                        notesFuture: _notesFuture,
+                        devotionals: devotionals,
+                        onRefresh: () {
+                          setState(() {
+                            _notesFuture = fetchNotes();
+                            _devotionalsFuture =
+                                _devotionalService.refreshCache().then((_) {
+                              return _devotionalService.getAllDevotionals();
                             });
-                          },
-                        );
-                      }),
+                          });
+                        },
+                      );
+                    },
+                  ),
                 ],
               ),
             ),
