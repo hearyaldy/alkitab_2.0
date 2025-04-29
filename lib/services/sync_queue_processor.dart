@@ -7,7 +7,9 @@ import '../services/connectivity_service.dart';
 
 enum SyncOperationType {
   bookmark,
+  highlight,
   settings,
+  note,
 }
 
 class SyncQueueProcessor {

@@ -334,32 +334,30 @@ class OfflineManager {
   /// Cleanup old Bible content
   Future<void> _cleanupOldBibleContent() async {
     try {
-      // Get all boxes that start with 'bible_verses_'
-      final bibleBoxes = Hive.boxes.keys
-          .where((boxName) => boxName.startsWith('bible_verses_'))
-          .toList();
-
-      // Get access history
       final prefs = await SharedPreferences.getInstance();
       final accessHistoryJson = prefs.getString('bible_access_history') ?? '{}';
       final Map<String, dynamic> accessHistory = jsonDecode(accessHistoryJson);
 
+      // Find all boxes in access history starting with "bible_verses_"
+      final bibleBoxes = accessHistory.keys
+          .where((boxName) => boxName.startsWith('bible_verses_'))
+          .toList();
+
       // Sort by last access time
-      final sortedBoxes = bibleBoxes.toList()
-        ..sort((a, b) {
-          final aTime = accessHistory[a] != null
-              ? DateTime.parse(accessHistory[a]).millisecondsSinceEpoch
-              : 0;
-          final bTime = accessHistory[b] != null
-              ? DateTime.parse(accessHistory[b]).millisecondsSinceEpoch
-              : 0;
-          return bTime.compareTo(aTime); // Descending order (newest first)
-        });
+      bibleBoxes.sort((a, b) {
+        final aTime = accessHistory[a] != null
+            ? DateTime.parse(accessHistory[a]).millisecondsSinceEpoch
+            : 0;
+        final bTime = accessHistory[b] != null
+            ? DateTime.parse(accessHistory[b]).millisecondsSinceEpoch
+            : 0;
+        return bTime.compareTo(aTime); // Newest first
+      });
 
       // Keep the 20 most recently accessed boxes, delete the rest
-      if (sortedBoxes.length > 20) {
-        for (int i = 20; i < sortedBoxes.length; i++) {
-          final boxName = sortedBoxes[i];
+      if (bibleBoxes.length > 20) {
+        for (int i = 20; i < bibleBoxes.length; i++) {
+          final boxName = bibleBoxes[i];
           if (Hive.isBoxOpen(boxName)) {
             await Hive.box(boxName).clear();
             await Hive.box(boxName).close();

@@ -14,16 +14,17 @@ import 'services/local_storage_service.dart';
 import 'services/connectivity_service.dart';
 import 'services/sync_service.dart';
 import 'models/bible_model.dart';
+import 'utils/offline_manager.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // 🚨 TEMPORARY: Clear Hive data immediately during development
   await Hive.initFlutter();
-  await Hive.deleteFromDisk();
 
   try {
     await LocalStorageService.initialize();
+    await OfflineManager().initialize(); // ✅ Important!
 
     _registerHiveAdapters();
 

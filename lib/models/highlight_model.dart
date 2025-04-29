@@ -1,7 +1,7 @@
 // lib/models/highlight_model.dart
 import 'package:hive/hive.dart';
 
-part 'highlight_model.g.dart'; // Will be generated with build_runner
+part 'highlight_model.g.dart';
 
 @HiveType(typeId: 3)
 class HighlightModel extends HiveObject {
@@ -51,7 +51,7 @@ class HighlightModel extends HiveObject {
       bookId: json['book_id'] ?? '',
       chapterId: int.tryParse(json['chapter_id']?.toString() ?? '0') ?? 0,
       verseId: int.tryParse(json['verse_id']?.toString() ?? '0') ?? 0,
-      colorCode: json['color_code'] ?? '#FFFF00', // Default yellow
+      colorCode: json['color_code'] ?? '#FFFF00',
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
           : DateTime.now(),
@@ -74,7 +74,6 @@ class HighlightModel extends HiveObject {
     };
   }
 
-  // Create a copy with updated fields
   HighlightModel copyWith({
     String? id,
     String? userId,
@@ -104,9 +103,16 @@ class HighlightModel extends HiveObject {
     return 'HighlightModel(id: $id, bookId: $bookId, chapterId: $chapterId, verseId: $verseId)';
   }
 
-  // Reference string for display (e.g., "Genesis 1:1")
   String getReferenceString(Map<String, String> bookNameMap) {
     final bookName = bookNameMap[bookId] ?? bookId;
     return '$bookName $chapterId:$verseId';
   }
+
+  // 🆕 Computed getter needed for services
+  String get verseReference {
+    return '$bookId $chapterId:$verseId';
+  }
+
+  // 🆕 Computed getter needed for services
+  String? get highlightText => verseText;
 }
