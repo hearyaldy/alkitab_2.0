@@ -8,6 +8,7 @@ import 'tabs/home_tab.dart' as home;
 import 'tabs/bible_tab.dart';
 import 'tabs/devotional_tab.dart';
 import 'tabs/profile_tab.dart' as profile;
+import '../widgets/offline_indicator.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   final int tabIndex;
@@ -85,9 +86,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _tabs,
+      body: Stack(
+        children: [
+          // Main page content
+          IndexedStack(
+            index: _selectedIndex,
+            children: _tabs,
+          ),
+
+          // 🔥 Always show the offline indicator at the top
+          const Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: OfflineIndicator(),
+          ),
+        ],
       ),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
@@ -128,7 +142,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     tooltip: 'Settings',
                     child: const Icon(Icons.settings),
                   ),
-                  const SizedBox(height: 8),
                 ],
               ),
             ),
