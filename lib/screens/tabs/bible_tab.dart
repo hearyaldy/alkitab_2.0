@@ -2,104 +2,131 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../../services/bible_service.dart';
-import '../../models/bible_model.dart';
+import '../../models/bible_model.dart'; // Updated to match your models
+import '../../utils/offline_manager.dart';
 
 class BibleTab extends ConsumerStatefulWidget {
-  const BibleTab({super.key});
+  const BibleTab({Key? key}) : super(key: key);
 
   @override
   ConsumerState<BibleTab> createState() => _BibleTabState();
 }
 
 class _BibleTabState extends ConsumerState<BibleTab> {
+  final _offlineManager = OfflineManager();
   late Future<List<BibleBook>> _futureBooks;
-
-  final MaterialColor themeColor = Colors.indigo;
 
   @override
   void initState() {
     super.initState();
-    _futureBooks = BibleService.fetchBooks('ABB');
+    _futureBooks = BibleService.fetchBooks('ABB'); // Default version ABB
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: FutureBuilder<List<BibleBook>>(
-        future: _futureBooks,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError || !snapshot.hasData) {
-            return const Center(child: Text("Failed to load Bible books"));
-          }
-
-          final books = snapshot.data!;
-          final oldTestament = books.where((b) => b.testament == 'OT').toList();
-          final newTestament = books.where((b) => b.testament == 'NT').toList();
-
-          return NestedScrollView(
-            headerSliverBuilder: (context, innerBoxIsScrolled) {
-              return [
-                SliverAppBar(
-                  title: const Text('Alkitab'),
-                  floating: true,
-                  pinned: true,
-                  snap: true,
-                  bottom: TabBar(
-                    tabs: const [
-                      Tab(text: 'Perjanjian Lama'),
-                      Tab(text: 'Perjanjian Baru'),
-                    ],
-                    labelColor: themeColor,
-                    unselectedLabelColor: Colors.white70,
-                    indicatorColor: Colors.white,
-                  ),
-                ),
-              ];
-            },
-            body: TabBarView(
-              children: [
-                _buildBookList(context, oldTestament),
-                _buildBookList(context, newTestament),
-              ],
-            ),
-          );
-        },
+  void _onBookTap(BuildContext context, BibleBook book) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => BibleChapterScreen(book: book),
       ),
     );
   }
 
-  Widget _buildBookList(BuildContext context, List<BibleBook> books) {
-    return Builder(
-      builder: (context) {
-        return CustomScrollView(
-          key: PageStorageKey<String>('BookList_${books.first.testament}'),
-          slivers: [
-            SliverOverlapInjector(
-              handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
-            ),
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (BuildContext context, int index) {
-                  final book = books[index];
-                  return ListTile(
-                    title: Text(book.name),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () {
-                      context.go('/bible-reader?bookId=${book.id}&chapterId=1');
-                    },
-                  );
-                },
-                childCount: books.length,
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            pinned: true,
+            expandedHeight: 200.0,
+            flexibleSpace: FlexibleSpaceBar(
+              title: const Text('Alkitab'),
+              background: Image.asset(
+                'assets/images/header_image.png', // Update this path accordingly
+                fit: BoxFit.cover,
               ),
             ),
-          ],
-        );
-      },
+          ),
+          FutureBuilder<List<BibleBook>>(
+            future: _futureBooks,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const SliverFillRemaining(
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              } else if (snapshot.hasError) {
+                return const SliverFillRemaining(
+                  child: Center(child: Text('Failed to load Bible books.')),
+                );
+              } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return const SliverFillRemaining(
+                  child: Center(child: Text('No books available.')),
+                );
+              }
+
+              final books = snapshot.data!;
+              return SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final book = books[index];
+                    return ListTile(
+                      title: Text(book.name),
+                      onTap: () => _onBookTap(context, book),
+                    );
+                  },
+                  childCount: books.length,
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Separate screen to display the verses of selected book
+class BibleChapterScreen extends StatelessWidget {
+  final BibleBook book;
+
+  const BibleChapterScreen({Key? key, required this.book}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    // For simplicity, assume chapter 1 first
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(book.name),
+      ),
+      body: FutureBuilder<List<BibleVerse>>(
+        future: BibleService.fetchVerses(
+          bookId: book.id,
+          chapterId: 1, // Start from chapter 1
+          version: 'ABB',
+        ),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            return const Center(child: Text('Failed to load verses.'));
+          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return const Center(child: Text('No verses available.'));
+          }
+
+          final verses = snapshot.data!;
+          return ListView.builder(
+            itemCount: verses.length,
+            itemBuilder: (context, index) {
+              final verse = verses[index];
+              return ListTile(
+                title: Text('${verse.chapterId}:${verse.verseNumber}'),
+                subtitle: Text(verse.text),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }
