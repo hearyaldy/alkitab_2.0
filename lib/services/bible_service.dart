@@ -15,43 +15,35 @@ class BibleService {
   };
 
   static Future<List<BibleBook>> fetchBooks(String versionCode) async {
-    final localBooks = await _getBooksFromLocalStorage(versionCode);
-    if (localBooks.isNotEmpty) return localBooks;
+    final local = await _getBooksFromLocal(versionCode);
+    if (local.isNotEmpty) return local;
 
-    try {
-      final books = await _fetchBooksFromNetwork(versionCode);
-      await _cacheBooksLocally(versionCode, books);
-      return books;
-    } catch (e) {
-      debugPrint('Error fetching books: $e');
-      return [];
-    }
+    final books = await _fetchBooksFromNetwork(versionCode);
+    await _cacheBooks(versionCode, books);
+    return books;
   }
 
   static Future<List<BibleBook>> _fetchBooksFromNetwork(
       String versionCode) async {
     final url = versionUrls[versionCode];
-    if (url == null) throw Exception('Invalid Bible version: $versionCode');
+    if (url == null) throw Exception('Invalid version: $versionCode');
 
     final response = await http.get(Uri.parse(url));
-    if (response.statusCode != 200) {
-      throw Exception('Failed to load Bible data');
-    }
+    if (response.statusCode != 200) throw Exception('Failed to fetch books');
 
-    final data = json.decode(response.body);
-    final List<dynamic> verses = data['verses'];
-
+    final List<dynamic> verses = json.decode(response.body)['verses'];
     final Map<int, String> bookMap = {};
-    for (var v in verses) {
+
+    for (final v in verses) {
       bookMap[v['book']] = v['book_name'];
     }
 
     return bookMap.entries.map((e) {
-      final bookId = e.value.toLowerCase().replaceAll(' ', '_');
+      final id = e.value.toLowerCase().replaceAll(' ', '_');
       return BibleBook(
-        id: bookId,
+        id: id,
         name: e.value,
-        abbreviation: bookId.substring(0, 3),
+        abbreviation: id.substring(0, 3),
         order: e.key,
         testament: e.key <= 39 ? 'OT' : 'NT',
         chapters: 1,
@@ -60,7 +52,7 @@ class BibleService {
       ..sort((a, b) => a.order.compareTo(b.order));
   }
 
-  static Future<void> _cacheBooksLocally(
+  static Future<void> _cacheBooks(
       String versionCode, List<BibleBook> books) async {
     final box = await Hive.openBox('bible_books_$versionCode');
     await box.clear();
@@ -69,12 +61,10 @@ class BibleService {
     }
   }
 
-  static Future<List<BibleBook>> _getBooksFromLocalStorage(
-      String versionCode) async {
+  static Future<List<BibleBook>> _getBooksFromLocal(String versionCode) async {
     final box = await Hive.openBox('bible_books_$versionCode');
     return box.values
-        .map((bookJson) =>
-            BibleBook.fromJson(Map<String, dynamic>.from(bookJson)))
+        .map((e) => BibleBook.fromJson(Map<String, dynamic>.from(e)))
         .toList();
   }
 
@@ -83,53 +73,31 @@ class BibleService {
     required int chapterId,
     String version = 'ABB',
   }) async {
-    final localVerses = await _getVersesFromLocalStorage(
-      bookId: bookId,
-      chapterId: chapterId,
-      version: version,
-    );
-    if (localVerses.isNotEmpty) return localVerses;
+    final local = await _getVersesFromLocal(bookId, chapterId, version);
+    if (local.isNotEmpty) return local;
 
-    try {
-      final verses = await _fetchVersesFromNetwork(
-        bookId: bookId,
-        chapterId: chapterId,
-        version: version,
-      );
-
-      await _cacheVersesLocally(
-        bookId: bookId,
-        chapterId: chapterId,
-        version: version,
-        verses: verses,
-      );
-      return verses;
-    } catch (e) {
-      debugPrint('Error fetching verses: $e');
-      return [];
-    }
+    final verses = await _fetchVersesFromNetwork(bookId, chapterId, version);
+    await _cacheVerses(bookId, chapterId, version, verses);
+    return verses;
   }
 
-  static Future<List<BibleVerse>> _fetchVersesFromNetwork({
-    required String bookId,
-    required int chapterId,
-    required String version,
-  }) async {
+  static Future<List<BibleVerse>> _fetchVersesFromNetwork(
+    String bookId,
+    int chapterId,
+    String version,
+  ) async {
     final url = versionUrls[version];
-    if (url == null) throw Exception('Invalid Bible version: $version');
+    if (url == null) throw Exception('Invalid version: $version');
 
     final response = await http.get(Uri.parse(url));
-    if (response.statusCode != 200) {
-      throw Exception('Failed to load Bible verses');
-    }
+    if (response.statusCode != 200) throw Exception('Failed to fetch verses');
 
     final data = json.decode(response.body);
-    final List<dynamic> allVerses = data['verses'];
+    final List<dynamic> all = data['verses'];
 
     final bookNum = _getBookNumber(bookId);
-    final filtered = allVerses
-        .where((v) => v['book'] == bookNum && v['chapter'] == chapterId)
-        .toList();
+    final filtered =
+        all.where((v) => v['book'] == bookNum && v['chapter'] == chapterId);
 
     return filtered
         .map((v) => BibleVerse(
@@ -142,35 +110,34 @@ class BibleService {
         .toList();
   }
 
-  static Future<void> _cacheVersesLocally({
-    required String bookId,
-    required int chapterId,
-    required String version,
-    required List<BibleVerse> verses,
-  }) async {
-    final boxName = 'bible_verses_${version}_${bookId}_$chapterId';
-    final box = await Hive.openBox(boxName);
+  static Future<void> _cacheVerses(
+    String bookId,
+    int chapterId,
+    String version,
+    List<BibleVerse> verses,
+  ) async {
+    final box =
+        await Hive.openBox('bible_verses_${version}_${bookId}_$chapterId');
     await box.clear();
-    for (var verse in verses) {
-      await box.put(verse.verseNumber, verse.toJson());
+    for (var v in verses) {
+      await box.put(v.verseNumber, v.toJson());
     }
   }
 
-  static Future<List<BibleVerse>> _getVersesFromLocalStorage({
-    required String bookId,
-    required int chapterId,
-    required String version,
-  }) async {
-    final boxName = 'bible_verses_${version}_${bookId}_$chapterId';
-    final box = await Hive.openBox(boxName);
+  static Future<List<BibleVerse>> _getVersesFromLocal(
+    String bookId,
+    int chapterId,
+    String version,
+  ) async {
+    final box =
+        await Hive.openBox('bible_verses_${version}_${bookId}_$chapterId');
     return box.values
-        .map((verseJson) =>
-            BibleVerse.fromJson(Map<String, dynamic>.from(verseJson)))
+        .map((e) => BibleVerse.fromJson(Map<String, dynamic>.from(e)))
         .toList();
   }
 
   static int _getBookNumber(String bookId) {
-    const map = {
+    const bookMap = {
       'genesis': 1,
       'exodus': 2,
       'leviticus': 3,
@@ -210,7 +177,7 @@ class BibleService {
       'haggai': 37,
       'zechariah': 38,
       'malachi': 39,
-      'matthew': 40,
+      'matt': 40,
       'mark': 41,
       'luke': 42,
       'john': 43,
@@ -238,22 +205,6 @@ class BibleService {
       'jude': 65,
       'revelation': 66,
     };
-    return map[bookId] ?? 1;
+    return bookMap[bookId] ?? 1;
   }
-
-  // Optional static helper inside class
-  static Future<List<BibleVerse>> getBookVerses(
-    String bookId,
-    int chapterId, {
-    String version = 'ABB',
-  }) {
-    return fetchVerses(bookId: bookId, chapterId: chapterId, version: version);
-  }
-}
-
-// Legacy global alias outside class (optional)
-Future<List<BibleVerse>> getBookVerses(String bookId, int chapterId,
-    {String version = 'ABB'}) {
-  return BibleService.fetchVerses(
-      bookId: bookId, chapterId: chapterId, version: version);
 }

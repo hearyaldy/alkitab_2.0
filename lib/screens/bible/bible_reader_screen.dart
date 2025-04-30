@@ -1,6 +1,7 @@
 // lib/screens/bible/bible_reader_screen.dart
 
 import 'dart:convert';
+import 'dart:async'; // For StreamSubscription
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,8 +11,13 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:alkitab_2_0/models/bible_model.dart';
+import 'package:alkitab_2_0/models/highlight_model.dart';
 import 'package:alkitab_2_0/constants/bible_data.dart';
+import 'package:alkitab_2_0/services/bible_service.dart';
+import 'package:alkitab_2_0/services/highlight_service.dart';
 
 class BibleReaderScreen extends ConsumerStatefulWidget {
   final String? bookId;
@@ -30,6 +36,9 @@ class BibleReaderScreen extends ConsumerStatefulWidget {
 }
 
 class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
+  // Define connectivity subscription properly
+  StreamSubscription? _connectivitySubscription;
+
   late String _currentBookId;
   late int _currentChapter;
   double _fontSize = 16.0;
@@ -40,6 +49,13 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
   bool _isSpeaking = false;
   Set<String> _bookmarks = {};
   final ScrollController _scrollController = ScrollController();
+  bool _isOffline = false;
+  bool _loadedFromCache = false;
+  int _loadTimeMillis = 0;
+
+  // Highlighting
+  Map<int, BibleHighlight> _highlights = {};
+  String _selectedColor = HighlightColors.yellow;
 
   // Verse selection state
   final Set<int> _selectedVerses = {};
@@ -50,14 +66,68 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
     super.initState();
     _currentBookId = widget.bookId ?? 'genesis';
     _currentChapter = widget.chapterId;
+    _initializeConnectivity();
+    _loadBibleVersion();
     _versesFuture = _fetchVerses();
     _loadBookmarks();
+    _loadHighlights(); // Load highlights for the current chapter
 
     _tts.setCompletionHandler(() {
       setState(() => _isSpeaking = false);
     });
 
     _saveReadingProgress();
+
+    // Set up connectivity change listener more safely
+    _connectivitySubscription =
+        Connectivity().onConnectivityChanged.listen((result) {
+      final offline = result == ConnectivityResult.none;
+      if (offline != _isOffline) {
+        setState(() {
+          _isOffline = offline;
+        });
+
+        // Try to sync when back online
+        if (!offline && _isOffline) {
+          _syncBookmarksWithSupabase();
+          _syncReadingProgressWithSupabase();
+          _syncHighlightsWithSupabase();
+        }
+      }
+    });
+  }
+
+  // Load highlights for the current chapter
+  Future<void> _loadHighlights() async {
+    final highlights = await HighlightService.getChapterHighlights(
+      _currentBookId,
+      _currentChapter,
+    );
+
+    setState(() {
+      _highlights = {for (var h in highlights) h.verseNumber: h};
+    });
+  }
+
+  // Sync highlights with Supabase when back online
+  Future<void> _syncHighlightsWithSupabase() async {
+    await HighlightService.syncAllHighlights();
+    await _loadHighlights(); // Reload highlights after sync
+  }
+
+  Future<void> _initializeConnectivity() async {
+    // Using direct Connectivity check instead
+    final connectivityResult = await Connectivity().checkConnectivity();
+    setState(() {
+      _isOffline = connectivityResult == ConnectivityResult.none;
+    });
+  }
+
+  Future<void> _loadBibleVersion() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _currentVersion = prefs.getString('preferred_bible_version') ?? 'ABB';
+    });
   }
 
   @override
@@ -75,7 +145,52 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
     });
   }
 
+  // Use BibleService to fetch verses with offline capability
   Future<List<BibleVerse>> _fetchVerses() async {
+    final stopwatch = Stopwatch()..start();
+
+    try {
+      // Check if content is cached before making request
+      final boxName =
+          'bible_verses_${_currentVersion}_${_currentBookId}_$_currentChapter';
+      final box = await Hive.openBox(boxName);
+      setState(() {
+        _loadedFromCache = box.isNotEmpty;
+      });
+
+      // Use the BibleService's fetchVerses method which handles offline caching
+      final verses = await BibleService.fetchVerses(
+        bookId: _currentBookId,
+        chapterId: _currentChapter,
+        version: _currentVersion,
+      );
+
+      // Record load time
+      stopwatch.stop();
+      setState(() {
+        _loadTimeMillis = stopwatch.elapsedMilliseconds;
+      });
+
+      // Check for footer text (only available online)
+      if (!_isOffline) {
+        await _fetchFooterText();
+      }
+
+      return verses;
+    } catch (e) {
+      stopwatch.stop();
+      setState(() {
+        _loadTimeMillis = stopwatch.elapsedMilliseconds;
+      });
+      debugPrint('Error fetching verses: $e');
+      return [];
+    }
+  }
+
+  // Fetch footer text separately (non-critical data)
+  Future<void> _fetchFooterText() async {
+    if (_isOffline) return;
+
     const versionUrls = {
       'ABB':
           'https://cjcokoctuqerrtilrsth.supabase.co/storage/v1/object/public/bible-json/indo_tm.json',
@@ -83,30 +198,20 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
           'https://cjcokoctuqerrtilrsth.supabase.co/storage/v1/object/public/bible-json/indo_tb.json',
     };
 
-    final url = versionUrls[_currentVersion];
-    if (url == null) throw Exception('Unknown Bible version $_currentVersion');
+    try {
+      final url = versionUrls[_currentVersion];
+      if (url == null) return;
 
-    final response = await http.get(Uri.parse(url));
-    if (response.statusCode != 200) throw Exception('Failed to load verses');
-
-    final jsonData = json.decode(response.body);
-    final List<dynamic> allVerses = jsonData['verses'];
-    _footerText = jsonData['metadata']?['footer'] ?? '';
-
-    final bookNum = getBookIndex(_currentBookId);
-    final filtered = allVerses
-        .where((v) => v['book'] == bookNum && v['chapter'] == _currentChapter)
-        .toList();
-
-    return filtered
-        .map((v) => BibleVerse(
-              id: v['verse'],
-              bookId: _currentBookId,
-              chapterId: v['chapter'],
-              verseNumber: v['verse'],
-              text: v['text'],
-            ))
-        .toList();
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        final jsonData = json.decode(response.body);
+        setState(() {
+          _footerText = jsonData['metadata']?['footer'] ?? '';
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching footer text: $e');
+    }
   }
 
   Future<void> _saveReadingProgress() async {
@@ -136,6 +241,27 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
     final maxChapters = getMaxChapters(_currentBookId);
     final progress = (_currentChapter / maxChapters).clamp(0.0, 1.0);
     await prefs.setDouble('progress_$_currentBookId', progress);
+
+    // Save if user is logged in and online
+    if (!_isOffline) {
+      _syncReadingProgressWithSupabase();
+    }
+  }
+
+  // Sync reading progress with Supabase
+  Future<void> _syncReadingProgressWithSupabase() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      await Supabase.instance.client.from('profiles').update({
+        'last_read_book': _currentBookId,
+        'last_read_chapter': _currentChapter,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', user.id);
+    } catch (e) {
+      debugPrint('Error syncing reading progress: $e');
+    }
   }
 
   void _loadBookmarks() async {
@@ -143,14 +269,16 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
     final saved = prefs.getStringList('bookmarks') ?? [];
     setState(() => _bookmarks = saved.toSet());
 
-    // Also sync with Supabase bookmarks if user is logged in
-    _syncBookmarksWithSupabase();
+    // Also sync with Supabase bookmarks if user is logged in and online
+    if (!_isOffline) {
+      _syncBookmarksWithSupabase();
+    }
   }
 
   // Sync local bookmarks with Supabase
   Future<void> _syncBookmarksWithSupabase() async {
     final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) return;
+    if (user == null || _isOffline) return;
 
     try {
       final response = await Supabase.instance.client
@@ -183,6 +311,140 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
   }
 
   // Toggle bookmark using both local storage and Supabase
+  Future<void> _toggleBookmark(String key, BibleVerse verse) async {
+    // First update local state for immediate feedback
+    setState(() {
+      if (_bookmarks.contains(key)) {
+        _bookmarks.remove(key);
+      } else {
+        _bookmarks.add(key);
+      }
+    });
+
+    // Update shared preferences for offline access
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setStringList('bookmarks', _bookmarks.toList());
+
+    // If online and logged in, sync with Supabase
+    if (!_isOffline) {
+      await _toggleSupabaseBookmark(key, verse);
+    } else {
+      // If offline, add to pending sync queue
+      await _addToPendingSyncQueue('bookmark', {
+        'key': key,
+        'bookId': verse.bookId,
+        'chapterId': verse.chapterId,
+        'verseNumber': verse.verseNumber,
+        'text': verse.text,
+        'action': _bookmarks.contains(key) ? 'add' : 'remove',
+      });
+    }
+  }
+
+  // Toggle highlight for a verse
+  Future<void> _toggleHighlight(int verseNumber, BibleVerse verse) async {
+    if (_highlights.containsKey(verseNumber)) {
+      // Remove existing highlight
+      await HighlightService.removeHighlight(
+        _currentBookId,
+        _currentChapter,
+        verseNumber,
+      );
+
+      setState(() {
+        _highlights.remove(verseNumber);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Highlight removed')),
+      );
+    } else {
+      // Add new highlight
+      final highlight = await HighlightService.addHighlight(
+        bookId: _currentBookId,
+        chapterId: _currentChapter,
+        verseNumber: verseNumber,
+        colorHex: _selectedColor,
+      );
+
+      setState(() {
+        _highlights[verseNumber] = highlight;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Highlight added')),
+      );
+    }
+  }
+
+  // Show color picker dialog
+  void _showColorPickerDialog(int verseNumber, BibleVerse verse) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Choose Highlight Color'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: HighlightColors.all().map((colorHex) {
+            final color = Color(int.parse(colorHex, radix: 16));
+            final isSelected = _selectedColor == colorHex;
+
+            return GestureDetector(
+              onTap: () {
+                Navigator.pop(context);
+                setState(() {
+                  _selectedColor = colorHex;
+                });
+
+                // Apply the highlight
+                _toggleHighlight(verseNumber, verse);
+              },
+              child: Container(
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isSelected ? Colors.black : Colors.transparent,
+                    width: 2,
+                  ),
+                ),
+                height: 40,
+                width: double.infinity,
+                alignment: Alignment.center,
+                child: isSelected
+                    ? const Icon(Icons.check, color: Colors.black54)
+                    : null,
+              ),
+            );
+          }).toList(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Add item to pending sync queue for when device is back online
+  Future<void> _addToPendingSyncQueue(
+      String type, Map<String, dynamic> data) async {
+    final prefs = await SharedPreferences.getInstance();
+    final pendingActions = prefs.getStringList('pending_sync_actions') ?? [];
+
+    pendingActions.add(jsonEncode({
+      'type': type,
+      'data': data,
+      'timestamp': DateTime.now().toIso8601String(),
+    }));
+
+    await prefs.setStringList('pending_sync_actions', pendingActions);
+  }
+
+  // Toggle bookmark in Supabase
   Future<void> _toggleSupabaseBookmark(String key, BibleVerse verse) async {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) {
@@ -234,19 +496,6 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
           const SnackBar(content: Text('Bookmark added')),
         );
       }
-
-      // Also update local bookmarks for immediate feedback
-      setState(() {
-        if (_bookmarks.contains(key)) {
-          _bookmarks.remove(key);
-        } else {
-          _bookmarks.add(key);
-        }
-      });
-
-      // Update shared preferences for offline access
-      final prefs = await SharedPreferences.getInstance();
-      prefs.setStringList('bookmarks', _bookmarks.toList());
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error managing bookmark: $e')),
@@ -257,6 +506,11 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
   // Navigate to the bookmarks screen
   void _navigateToBookmarksScreen() {
     context.go('/bookmarks');
+  }
+
+  // Navigate to the highlights screen
+  void _navigateToHighlightsScreen() {
+    context.go('/highlights');
   }
 
   // Toggle verse selection
@@ -356,6 +610,7 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
     final key = '${verse.bookId}_${verse.chapterId}_${verse.verseNumber}';
     final bookmarked = _bookmarks.contains(key);
     final isSelected = _selectedVerses.contains(verse.verseNumber);
+    final highlight = _highlights[verse.verseNumber];
 
     return GestureDetector(
       onLongPress: () {
@@ -424,6 +679,25 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                   ],
                 ),
               ),
+              // Add highlight menu item
+              PopupMenuItem(
+                value: 'highlight',
+                child: Row(
+                  children: [
+                    Icon(
+                      highlight != null ? Icons.brush : Icons.brush_outlined,
+                      size: 20,
+                      color: highlight != null
+                          ? Color(int.parse(highlight.colorHex, radix: 16))
+                          : null,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(highlight != null
+                        ? 'Ubah Highlight'
+                        : 'Highlight Ayat'),
+                  ],
+                ),
+              ),
             ],
           ).then((value) async {
             if (value == 'select') {
@@ -436,8 +710,9 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
             } else if (value == 'share') {
               _shareSingleVerse(verse);
             } else if (value == 'bookmark') {
-              // Use Supabase bookmark method
-              _toggleSupabaseBookmark(key, verse);
+              _toggleBookmark(key, verse);
+            } else if (value == 'highlight') {
+              _showColorPickerDialog(verse.verseNumber, verse);
             }
           });
         }
@@ -447,7 +722,9 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
           : null,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 16.0),
-        color: isSelected ? Colors.blue.withAlpha(40) : Colors.transparent,
+        color: highlight != null
+            ? Color(int.parse(highlight.colorHex, radix: 16))
+            : (isSelected ? Colors.blue.withAlpha(40) : Colors.transparent),
         child: RichText(
           text: TextSpan(
             children: [
@@ -500,6 +777,9 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                 _selectedVerses.clear();
                 _isSelectionMode = false;
               });
+
+              // Load highlights for the new chapter
+              _loadHighlights();
             },
             child: Card(
               shape: RoundedRectangleBorder(
@@ -544,6 +824,11 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                   _currentVersion = value!;
                   _versesFuture = _fetchVerses();
                 });
+
+                // Save preference
+                SharedPreferences.getInstance().then((prefs) {
+                  prefs.setString('preferred_bible_version', value!);
+                });
               },
             ),
             RadioListTile<String>(
@@ -556,6 +841,11 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                   _currentVersion = value!;
                   _versesFuture = _fetchVerses();
                 });
+
+                // Save preference
+                SharedPreferences.getInstance().then((prefs) {
+                  prefs.setString('preferred_bible_version', value!);
+                });
               },
             ),
           ],
@@ -567,6 +857,7 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
   @override
   Widget build(BuildContext context) {
     final bookName = getBookName(_currentBookId);
+
     return Scaffold(
       appBar: AppBar(
         title: Column(
@@ -578,7 +869,7 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
               style: const TextStyle(
                 fontSize: 12,
                 fontStyle: FontStyle.italic,
-                color: Colors.black,
+                color: Colors.black54,
               ),
             ),
           ],
@@ -617,6 +908,11 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                   icon: const Icon(Icons.bookmarks),
                   onPressed: _navigateToBookmarksScreen,
                 ),
+                // Highlight icon to navigate to highlights screen
+                IconButton(
+                  icon: const Icon(Icons.brush),
+                  onPressed: _navigateToHighlightsScreen,
+                ),
                 IconButton(
                   icon: const Icon(Icons.translate),
                   onPressed: _showVersionDialog,
@@ -649,83 +945,208 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
               tooltip: 'Pilih Pasal',
               child: const Icon(Icons.grid_view),
             ),
-      body: FutureBuilder<List<BibleVerse>>(
-        future: _versesFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-
-          final verses = snapshot.data!;
-          return Column(
-            children: [
-              Container(
-                width: double.infinity,
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                padding:
-                    const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                child: Column(
-                  children: [
-                    Text(bookName,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        )),
-                    const SizedBox(height: 4),
-                    Text('Pasal $_currentChapter',
-                        style: const TextStyle(
-                            fontSize: 14, fontStyle: FontStyle.italic)),
-                  ],
-                ),
-              ),
-              if (_isSelectionMode)
-                Container(
-                  padding: const EdgeInsets.all(8.0),
-                  color: Colors.blue.withOpacity(0.1),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '${_selectedVerses.length} ayat dipilih',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      TextButton(
-                        onPressed: () => setState(() {
-                          _selectedVerses.clear();
-                          _isSelectionMode = false;
-                        }),
-                        child: const Text('Batal'),
-                      ),
-                    ],
-                  ),
-                ),
-              Expanded(
-                child: ListView.builder(
-                  controller: _scrollController,
-                  itemCount: verses.length,
-                  itemBuilder: (context, index) =>
-                      _buildVerseItem(verses[index]),
-                ),
-              ),
-              if (_footerText.isNotEmpty)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                  child: Text(
-                    _footerText,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
+      body: Column(
+        children: [
+          // Offline indicator directly in the widget
+          if (_isOffline)
+            Container(
+              color: Colors.orange.shade100,
+              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+              child: Row(
+                children: const [
+                  Icon(Icons.wifi_off, size: 16, color: Colors.orange),
+                  SizedBox(width: 8),
+                  Text(
+                    'Mode Offline - Perubahan akan disinkronkan nanti',
+                    style: TextStyle(
                       fontSize: 12,
-                      fontStyle: FontStyle.italic,
-                      color: Colors.grey,
+                      color: Colors.orange,
                     ),
                   ),
-                ),
-            ],
-          );
-        },
+                ],
+              ),
+            ),
+
+          Expanded(
+            child: FutureBuilder<List<BibleVerse>>(
+              future: _versesFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                } else if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error_outline,
+                            size: 48, color: Colors.red),
+                        const SizedBox(height: 16),
+                        Text('Error: ${snapshot.error}'),
+                        const SizedBox(height: 24),
+                        ElevatedButton(
+                          onPressed: () {
+                            setState(() {
+                              _versesFuture = _fetchVerses();
+                            });
+                          },
+                          child: const Text('Coba Lagi'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                final verses = snapshot.data ?? [];
+                if (verses.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.book_outlined,
+                            size: 48, color: Colors.grey),
+                        const SizedBox(height: 16),
+                        const Text('Tidak ada ayat yang ditemukan'),
+                        if (_isOffline)
+                          const Padding(
+                            padding: EdgeInsets.all(16.0),
+                            child: Text(
+                              'Anda sedang dalam mode offline. Konten ini mungkin belum diunduh.',
+                              textAlign: TextAlign.center,
+                              style:
+                                  TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
+                          ),
+                        const SizedBox(height: 24),
+                        ElevatedButton(
+                          onPressed: () {
+                            setState(() {
+                              _versesFuture = _fetchVerses();
+                            });
+                          },
+                          child: const Text('Coba Lagi'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return Column(
+                  children: [
+                    Stack(
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          color: Theme.of(context).colorScheme.surfaceVariant,
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 12, horizontal: 16),
+                          child: Column(
+                            children: [
+                              Text(bookName,
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  )),
+                              const SizedBox(height: 4),
+                              Text('Pasal $_currentChapter',
+                                  style: const TextStyle(
+                                      fontSize: 14,
+                                      fontStyle: FontStyle.italic)),
+
+                              // Add cache indicator
+                              if (snapshot.connectionState !=
+                                  ConnectionState.waiting)
+                                Container(
+                                  margin: const EdgeInsets.only(top: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: _loadedFromCache
+                                        ? Colors.green.withOpacity(0.1)
+                                        : Colors.blue.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        _loadedFromCache
+                                            ? Icons.storage
+                                            : Icons.cloud_download,
+                                        size: 10,
+                                        color: _loadedFromCache
+                                            ? Colors.green
+                                            : Colors.blue,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        _loadedFromCache
+                                            ? 'From cache (${_loadTimeMillis}ms)'
+                                            : 'From network (${_loadTimeMillis}ms)',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: _loadedFromCache
+                                              ? Colors.green
+                                              : Colors.blue,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_isSelectionMode)
+                      Container(
+                        padding: const EdgeInsets.all(8.0),
+                        color: Colors.blue.withOpacity(0.1),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '${_selectedVerses.length} ayat dipilih',
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            TextButton(
+                              onPressed: () => setState(() {
+                                _selectedVerses.clear();
+                                _isSelectionMode = false;
+                              }),
+                              child: const Text('Batal'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    Expanded(
+                      child: ListView.builder(
+                        controller: _scrollController,
+                        itemCount: verses.length,
+                        itemBuilder: (context, index) =>
+                            _buildVerseItem(verses[index]),
+                      ),
+                    ),
+                    if (_footerText.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 12, horizontal: 16),
+                        child: Text(
+                          _footerText,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontStyle: FontStyle.italic,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -734,6 +1155,7 @@ class BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
   void dispose() {
     _scrollController.dispose();
     _tts.stop();
+    _connectivitySubscription?.cancel();
     super.dispose();
   }
 }

@@ -6,7 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../services/bible_service.dart';
 import '../../models/bible_model.dart';
 
-class BibleTab extends StatelessWidget {
+class BibleTab extends ConsumerWidget {
   const BibleTab({super.key});
 
   static final List<Map<String, String>> _oldTestamentBooks = [
@@ -82,7 +82,7 @@ class BibleTab extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final themeColor = const Color.fromARGB(255, 244, 224, 2);
     return DefaultTabController(
       length: 2,
@@ -204,8 +204,10 @@ class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   double get maxExtent => tabBar.preferredSize.height;
+
   @override
   double get minExtent => tabBar.preferredSize.height;
+
   @override
   bool shouldRebuild(_SliverAppBarDelegate oldDelegate) => false;
 }
