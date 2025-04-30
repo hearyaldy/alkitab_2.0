@@ -7,9 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/devotional_model.dart';
 import '../../services/devotional_service.dart';
-import '../../services/sync_queue_processor.dart';
 import '../../providers/sync_providers.dart';
-import '../../services/connectivity_service.dart';
 
 // Import existing widgets
 import '../../widgets/devotional_bookmarks_list.dart'

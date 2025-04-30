@@ -34,8 +34,9 @@ class BibleService {
     if (url == null) throw Exception('Invalid Bible version: $versionCode');
 
     final response = await http.get(Uri.parse(url));
-    if (response.statusCode != 200)
+    if (response.statusCode != 200) {
       throw Exception('Failed to load Bible data');
+    }
 
     final data = json.decode(response.body);
     final List<dynamic> verses = data['verses'];
@@ -118,8 +119,9 @@ class BibleService {
     if (url == null) throw Exception('Invalid Bible version: $version');
 
     final response = await http.get(Uri.parse(url));
-    if (response.statusCode != 200)
+    if (response.statusCode != 200) {
       throw Exception('Failed to load Bible verses');
+    }
 
     final data = json.decode(response.body);
     final List<dynamic> allVerses = data['verses'];

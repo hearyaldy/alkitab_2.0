@@ -65,7 +65,7 @@ class HighlightService {
           h.chapterId == chapterId &&
           h.verseId == verseId,
     );
-    return highlight?.colorCode;
+    return highlight.colorCode;
   }
 
   /// Add a highlight

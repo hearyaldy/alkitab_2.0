@@ -310,8 +310,9 @@ extension BookmarkUtilities on BookmarkService {
   String convertBookmarkToShareableText(BookmarkModel bookmark) {
     final buffer = StringBuffer();
     if (bookmark.title != null) buffer.writeln(bookmark.title);
-    if (bookmark.verseReference != null)
+    if (bookmark.verseReference != null) {
       buffer.writeln(bookmark.verseReference);
+    }
     if (bookmark.verseText != null) buffer.writeln('"${bookmark.verseText}"');
     if (bookmark.notes != null) buffer.writeln('\nNotes: ${bookmark.notes}');
     buffer.writeln('\nBookmarked in Alkitab 2.0');

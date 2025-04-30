@@ -91,7 +91,7 @@ class NoteService {
       return notes;
     } catch (e) {
       debugPrint('Server notes fetch error: $e');
-      throw e;
+      rethrow;
     }
   }
 

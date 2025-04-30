@@ -13,12 +13,12 @@ class BibleOfflineStatus extends ConsumerWidget {
   final VoidCallback? onDownload;
 
   const BibleOfflineStatus({
-    Key? key,
+    super.key,
     required this.bookId,
     required this.chapterId,
     required this.version,
     this.onDownload,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -152,12 +152,12 @@ class BibleDownloadProgress extends StatelessWidget {
   final VoidCallback? onCancel;
 
   const BibleDownloadProgress({
-    Key? key,
+    super.key,
     required this.bookId,
     required this.chapterId,
     required this.progress,
     this.onCancel,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

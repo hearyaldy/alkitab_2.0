@@ -3,7 +3,6 @@
 import 'package:flutter/foundation.dart'; // ✅ for debugPrint
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../services/connectivity_service.dart';
 
 enum SyncOperationType {
   bookmark,

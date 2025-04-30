@@ -9,7 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
 class HomeTab extends StatefulWidget {
-  const HomeTab({Key? key}) : super(key: key);
+  const HomeTab({super.key});
 
   @override
   State<HomeTab> createState() => _HomeTabState();

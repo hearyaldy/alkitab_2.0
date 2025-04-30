@@ -148,9 +148,9 @@ class SyncConflictResolver {
           if (cloudValue == null && localValue != null) {
             // Keep local non-null value
           } else if (cloudValue is String &&
-              (cloudValue as String).isEmpty &&
+              (cloudValue).isEmpty &&
               localValue is String &&
-              (localValue as String).isNotEmpty) {
+              (localValue).isNotEmpty) {
             // Keep local non-empty string
           } else {
             // Default to cloud value

@@ -66,7 +66,7 @@ final syncManagerProvider = Provider<SyncManager>((ref) {
 
 // Sync Status Widget
 class SyncStatusWidget extends ConsumerWidget {
-  const SyncStatusWidget({Key? key}) : super(key: key);
+  const SyncStatusWidget({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

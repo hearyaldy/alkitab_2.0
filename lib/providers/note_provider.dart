@@ -2,7 +2,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/note_model.dart';
 import '../services/note_service.dart';
-import '../services/sync_queue_processor.dart';
 import '../providers/sync_providers.dart';
 
 // Provider for NoteService

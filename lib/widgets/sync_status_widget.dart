@@ -11,9 +11,9 @@ class SyncStatusWidget extends ConsumerWidget {
   final bool showSyncButton;
 
   const SyncStatusWidget({
-    Key? key,
+    super.key,
     this.showSyncButton = true,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -72,13 +72,13 @@ class SyncStatusWidget extends ConsumerWidget {
                           );
                         }
                       },
-                      child: const Text('Sync Now'),
                       style: TextButton.styleFrom(
                         foregroundColor: iconColor,
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         minimumSize: const Size(60, 24),
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
+                      child: const Text('Sync Now'),
                     ),
                 ],
               ),
@@ -127,7 +127,7 @@ class SyncStatusWidget extends ConsumerWidget {
 
 /// A widget that shows a detailed sync status in a card
 class SyncStatusCard extends ConsumerWidget {
-  const SyncStatusCard({Key? key}) : super(key: key);
+  const SyncStatusCard({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

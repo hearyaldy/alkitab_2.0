@@ -6,7 +6,7 @@ import '../utils/offline_manager.dart';
 
 /// A widget that shows an animated offline indicator with retry button and last connected time
 class OfflineIndicator extends ConsumerStatefulWidget {
-  const OfflineIndicator({Key? key}) : super(key: key);
+  const OfflineIndicator({super.key});
 
   @override
   ConsumerState<OfflineIndicator> createState() => _OfflineIndicatorState();

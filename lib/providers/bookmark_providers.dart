@@ -122,7 +122,7 @@ final bookmarkOperationsProvider =
 
 // Widget to show sync status for bookmarks
 class BookmarkSyncStatusWidget extends ConsumerWidget {
-  const BookmarkSyncStatusWidget({Key? key}) : super(key: key);
+  const BookmarkSyncStatusWidget({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

@@ -14,7 +14,7 @@ class OfflineContentPlaceholder extends ConsumerWidget {
   final bool showNetworkStatus;
 
   const OfflineContentPlaceholder({
-    Key? key,
+    super.key,
     this.title = 'Content Not Available Offline',
     this.message =
         'This content requires an internet connection to view. Please connect to the internet and try again.',
@@ -22,7 +22,7 @@ class OfflineContentPlaceholder extends ConsumerWidget {
     this.onActionPressed,
     this.actionLabel = 'Try Again',
     this.showNetworkStatus = true,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -116,10 +116,10 @@ class CompactOfflineContentPlaceholder extends StatelessWidget {
   final VoidCallback? onRetry;
 
   const CompactOfflineContentPlaceholder({
-    Key? key,
+    super.key,
     this.message = 'Content not available offline',
     this.onRetry,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -163,11 +163,11 @@ class BibleOfflineContentPlaceholder extends StatelessWidget {
   final VoidCallback? onDownloadPressed;
 
   const BibleOfflineContentPlaceholder({
-    Key? key,
+    super.key,
     required this.bookName,
     required this.chapterId,
     this.onDownloadPressed,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -216,10 +216,10 @@ class DevotionalOfflineContentPlaceholder extends StatelessWidget {
   final VoidCallback? onDownloadPressed;
 
   const DevotionalOfflineContentPlaceholder({
-    Key? key,
+    super.key,
     this.title,
     this.onDownloadPressed,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
