@@ -6,7 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:alkitab_2_0/models/bible_model.dart';
 import 'package:alkitab_2_0/constants/bible_data.dart';
 import 'package:alkitab_2_0/services/bible_service.dart';
-import 'package:alkitab_2_0/providers/highlight_provider.dart';
 import 'dart:convert';
 
 // Provider for managing highlights with offline storage
@@ -53,12 +52,9 @@ class HighlightStore extends StateNotifier<Map<String, String>> {
   }
 
   void addHighlight(String verseKey, String colorHex) {
-    state = {...state, verseKey: colorHex};
-    _saveHighlights();
-  }
-
-  void addMultipleHighlights(Map<String, String> highlights) {
-    state = {...state, ...highlights};
+    final newState = Map<String, String>.from(state);
+    newState[verseKey] = colorHex;
+    state = newState;
     _saveHighlights();
   }
 
@@ -68,14 +64,109 @@ class HighlightStore extends StateNotifier<Map<String, String>> {
     state = newState;
     _saveHighlights();
   }
+}
 
-  void removeMultipleHighlights(List<String> verseKeys) {
-    final newState = Map<String, String>.from(state);
-    for (final key in verseKeys) {
-      newState.remove(key);
+// Provider for managing verse bookmarks
+final verseBookmarkProvider = StateNotifierProvider<VerseBookmarkStore, Set<String>>((ref) {
+  return VerseBookmarkStore();
+});
+
+// StateNotifier to manage verse bookmarks with persistence
+class VerseBookmarkStore extends StateNotifier<Set<String>> {
+  VerseBookmarkStore() : super({}) {
+    _loadBookmarks();
+  }
+
+  Future<void> _loadBookmarks() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final bookmarksJson = prefs.getString('bible_verse_bookmarks');
+      
+      if (bookmarksJson != null) {
+        final List<dynamic> decoded = json.decode(bookmarksJson);
+        state = decoded.map((item) => item.toString()).toSet();
+      }
+    } catch (e) {
+      debugPrint('Error loading verse bookmarks: $e');
     }
+  }
+
+  Future<void> _saveBookmarks() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('bible_verse_bookmarks', json.encode(state.toList()));
+    } catch (e) {
+      debugPrint('Error saving verse bookmarks: $e');
+    }
+  }
+
+  void toggleVerseBookmark(String verseKey) {
+    final newState = Set<String>.from(state);
+    
+    if (newState.contains(verseKey)) {
+      newState.remove(verseKey);
+    } else {
+      newState.add(verseKey);
+    }
+    
     state = newState;
-    _saveHighlights();
+    _saveBookmarks();
+  }
+
+  bool isVerseBookmarked(String verseKey) {
+    return state.contains(verseKey);
+  }
+}
+
+// Provider for managing chapter bookmarks
+final chapterBookmarkProvider = StateNotifierProvider<ChapterBookmarkStore, Set<String>>((ref) {
+  return ChapterBookmarkStore();
+});
+
+// StateNotifier to manage chapter bookmarks with persistence
+class ChapterBookmarkStore extends StateNotifier<Set<String>> {
+  ChapterBookmarkStore() : super({}) {
+    _loadBookmarks();
+  }
+
+  Future<void> _loadBookmarks() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final bookmarksJson = prefs.getString('bible_chapter_bookmarks');
+      
+      if (bookmarksJson != null) {
+        final List<dynamic> decoded = json.decode(bookmarksJson);
+        state = decoded.map((item) => item.toString()).toSet();
+      }
+    } catch (e) {
+      debugPrint('Error loading chapter bookmarks: $e');
+    }
+  }
+
+  Future<void> _saveBookmarks() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('bible_chapter_bookmarks', json.encode(state.toList()));
+    } catch (e) {
+      debugPrint('Error saving chapter bookmarks: $e');
+    }
+  }
+
+  void toggleChapterBookmark(String chapterKey) {
+    final newState = Set<String>.from(state);
+    
+    if (newState.contains(chapterKey)) {
+      newState.remove(chapterKey);
+    } else {
+      newState.add(chapterKey);
+    }
+    
+    state = newState;
+    _saveBookmarks();
+  }
+
+  bool isChapterBookmarked(String chapterKey) {
+    return state.contains(chapterKey);
   }
 }
 
@@ -104,9 +195,8 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
   final FlutterTts _tts = FlutterTts();
   bool _isSpeaking = false;
   final ScrollController _scrollController = ScrollController();
-  final Set<int> _selectedVerses = {};
-  bool _isSelectionMode = false;
-  bool _highlightsLoaded = false;
+  bool _verseOptionsVisible = false;
+  late BibleVerse _selectedVerse;
 
   @override
   void initState() {
@@ -129,6 +219,14 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
     }
   }
 
+  String _getChapterKey() {
+    return '${_currentBookId}_${_currentChapter}';
+  }
+
+  String _getVerseKey(int verseNumber) {
+    return '${_currentBookId}_${_currentChapter}_$verseNumber';
+  }
+
   void _scrollToVerse(int verseNumber) {
     if (_scrollController.hasClients) {
       // Approximate scroll position - you might need to adjust this
@@ -142,11 +240,17 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
   }
 
   Future<List<BibleVerse>> _loadVerses() async {
-    return await BibleService.fetchVerses(
-      bookId: _currentBookId,
-      chapterId: _currentChapter,
-      version: _currentVersion,
-    );
+    try {
+      // Try to load from local storage first using Bible Service
+      return await BibleService.fetchVerses(
+        bookId: _currentBookId,
+        chapterId: _currentChapter,
+        version: _currentVersion,
+      );
+    } catch (e) {
+      debugPrint('Error loading verses: $e');
+      return [];
+    }
   }
 
   Future<void> _saveReadingProgress() async {
@@ -164,14 +268,29 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
     await prefs.setDouble('progress_$_currentBookId', (_currentChapter / max));
   }
 
-  void _toggleVerseSelection(int verse) {
+  void _toggleChapterBookmark() {
+    final chapterKey = _getChapterKey();
+    ref.read(chapterBookmarkProvider.notifier).toggleChapterBookmark(chapterKey);
+  }
+
+  void _toggleVerseBookmark(BibleVerse verse) {
+    final verseKey = _getVerseKey(verse.verseNumber);
+    ref.read(verseBookmarkProvider.notifier).toggleVerseBookmark(verseKey);
+    _closeVerseOptions();
+  }
+
+  void _showVerseOptions(BibleVerse verse) {
     setState(() {
-      if (_selectedVerses.contains(verse)) {
-        _selectedVerses.remove(verse);
-      } else {
-        _selectedVerses.add(verse);
-      }
-      _isSelectionMode = _selectedVerses.isNotEmpty;
+      _verseOptionsVisible = true;
+      _selectedVerse = verse;
+    });
+    
+    _showVerseOptionsBottomSheet(verse);
+  }
+
+  void _closeVerseOptions() {
+    setState(() {
+      _verseOptionsVisible = false;
     });
   }
 
@@ -181,6 +300,15 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
     await _tts.setSpeechRate(0.5);
     setState(() => _isSpeaking = true);
     await _tts.speak(text);
+  }
+
+  Future<void> _speakVerse(BibleVerse verse) async {
+    final text = '${verse.verseNumber}. ${verse.text}';
+    await _tts.setLanguage('id-ID');
+    await _tts.setSpeechRate(0.5);
+    setState(() => _isSpeaking = true);
+    await _tts.speak(text);
+    _closeVerseOptions();
   }
 
   Future<void> _stopSpeaking() async {
@@ -202,83 +330,57 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
     }
   }
 
-  String _getVerseKey(int verseNumber) {
-    return '${_currentBookId}_${_currentChapter}_$verseNumber';
-  }
-
-  // Load any existing highlights from the original provider if they exist
-  void _loadExistingHighlights(List<BibleVerse> verses) async {
-    if (_highlightsLoaded) return;
-    
-    // Get all existing provider highlights for this chapter
-    final Map<String, String> highlightsToAdd = {};
-    
-    for (final verse in verses) {
-      try {
-        final colorAsync = ref.read(
-          highlightColorProvider((_currentBookId, _currentChapter, verse.verseNumber))
-        );
-        
-        final colorHex = await colorAsync.when(
-          data: (color) => color,
-          loading: () => null,
-          error: (_, __) => null,
-        );
-        
-        if (colorHex != null) {
-          final verseKey = _getVerseKey(verse.verseNumber);
-          highlightsToAdd[verseKey] = colorHex;
-        }
-      } catch (e) {
-        debugPrint('Error loading highlight for verse ${verse.verseNumber}: $e');
-      }
-    }
-    
-    // Add any found highlights to our store
-    if (highlightsToAdd.isNotEmpty) {
-      ref.read(highlightStoreProvider.notifier).addMultipleHighlights(highlightsToAdd);
-    }
-    
-    _highlightsLoaded = true;
-  }
-
   Widget _buildVerse(BibleVerse verse) {
     // Get highlight from our store
     final highlightsMap = ref.watch(highlightStoreProvider);
     final verseKey = _getVerseKey(verse.verseNumber);
     final colorHex = highlightsMap[verseKey];
     
+    // Check if verse is bookmarked
+    final isVerseBookmarked = ref.watch(verseBookmarkProvider).contains(verseKey);
+    
     // Get the color 
     final highlightColor = _parseColor(colorHex);
 
     return GestureDetector(
-      onLongPress: () => _toggleVerseSelection(verse.verseNumber),
+      onLongPress: () => _showVerseOptions(verse),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-        color: _selectedVerses.contains(verse.verseNumber)
-            ? Colors.blue.withOpacity(0.1)
-            : highlightColor,
-        child: RichText(
-          text: TextSpan(
-            children: [
-              TextSpan(
-                text: '${verse.verseNumber}. ',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: _fontSize,
-                  color: Colors.grey[700],
+        color: highlightColor,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: RichText(
+                text: TextSpan(
+                  children: [
+                    TextSpan(
+                      text: '${verse.verseNumber}. ',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: _fontSize,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                    TextSpan(
+                      text: verse.text,
+                      style: TextStyle(
+                        fontSize: _fontSize,
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
+                        height: 1.6,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              TextSpan(
-                text: verse.text,
-                style: TextStyle(
-                  fontSize: _fontSize,
-                  color: Theme.of(context).textTheme.bodyLarge?.color,
-                  height: 1.6,
-                ),
+            ),
+            if (isVerseBookmarked)
+              Icon(
+                Icons.bookmark,
+                color: Colors.amber,
+                size: 20,
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );
@@ -287,10 +389,26 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
   @override
   Widget build(BuildContext context) {
     final bookName = getBookName(_currentBookId);
+    final isChapterBookmarked = ref.watch(chapterBookmarkProvider).contains(_getChapterKey());
+    
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            // Navigate directly to the home screen using GoRouter
+            context.go('/home');
+          },
+        ),
         title: Text('$bookName $_currentChapter'),
         actions: [
+          IconButton(
+            icon: Icon(
+              isChapterBookmarked ? Icons.bookmark : Icons.bookmark_border,
+              color: isChapterBookmarked ? Colors.amber : null,
+            ),
+            onPressed: _toggleChapterBookmark,
+          ),
           if (_isSpeaking)
             IconButton(
               icon: const Icon(Icons.stop),
@@ -322,16 +440,11 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
-          } else if (!snapshot.hasData) {
+          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return const Center(child: Text('Failed to load verses.'));
           }
 
           final verses = snapshot.data!;
-          
-          // Load existing highlights if not already loaded
-          if (!_highlightsLoaded) {
-            _loadExistingHighlights(verses);
-          }
           
           return ListView.builder(
             controller: _scrollController,
@@ -340,25 +453,84 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
           );
         },
       ),
-      persistentFooterButtons: _isSelectionMode
-          ? [
-              TextButton(
-                onPressed: () => setState(() {
-                  _selectedVerses.clear();
-                  _isSelectionMode = false;
-                }),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: _showHighlightOptions,
-                child: const Text('Highlight'),
-              ),
-            ]
-          : null,
     );
   }
 
-  void _showHighlightOptions() {
+  void _showVerseOptionsBottomSheet(BibleVerse verse) {
+    final verseKey = _getVerseKey(verse.verseNumber);
+    final isVerseBookmarked = ref.read(verseBookmarkProvider).contains(verseKey);
+    
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Verse ${verse.verseNumber}',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              verse.text,
+              style: const TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildOptionButton(
+                  icon: isVerseBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                  label: isVerseBookmarked ? 'Remove Bookmark' : 'Bookmark',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _toggleVerseBookmark(verse);
+                  },
+                ),
+                _buildOptionButton(
+                  icon: Icons.record_voice_over,
+                  label: 'Read Aloud',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _speakVerse(verse);
+                  },
+                ),
+                _buildOptionButton(
+                  icon: Icons.brush,
+                  label: 'Highlight',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showHighlightOptions(verse);
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOptionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 28),
+          const SizedBox(height: 4),
+          Text(label, style: const TextStyle(fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  void _showHighlightOptions(BibleVerse verse) {
     final colors = [
       '#FFEB3B', // Yellow
       '#90CAF9', // Light Blue
@@ -383,7 +555,7 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                 return GestureDetector(
                   onTap: () {
                     Navigator.pop(ctx);
-                    _handleHighlight(colorHex);
+                    _handleHighlight(verse, colorHex);
                   },
                   child: Container(
                     width: 40,
@@ -401,7 +573,7 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(ctx);
-                _handleRemoveHighlight();
+                _handleRemoveHighlight(verse);
               },
               child: const Text('Remove Highlight'),
             ),
@@ -411,37 +583,14 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
     );
   }
 
-  void _handleHighlight(String colorHex) {
-    // Make a copy of selected verses before clearing
-    final versesToHighlight = List<int>.from(_selectedVerses);
-    final highlightStore = ref.read(highlightStoreProvider.notifier);
-    
-    // Add new highlights to the store
-    for (final verseNum in versesToHighlight) {
-      final verseKey = _getVerseKey(verseNum);
-      highlightStore.addHighlight(verseKey, colorHex);
-    }
-    
-    // Clear selection
-    setState(() {
-      _selectedVerses.clear();
-      _isSelectionMode = false;
-    });
+  void _handleHighlight(BibleVerse verse, String colorHex) {
+    final verseKey = _getVerseKey(verse.verseNumber);
+    ref.read(highlightStoreProvider.notifier).addHighlight(verseKey, colorHex);
   }
 
-  void _handleRemoveHighlight() {
-    // Make a copy of selected verses before clearing
-    final versesToRemove = List<int>.from(_selectedVerses);
-    final verseKeysToRemove = versesToRemove.map((num) => _getVerseKey(num)).toList();
-    
-    // Remove highlights from store
-    ref.read(highlightStoreProvider.notifier).removeMultipleHighlights(verseKeysToRemove);
-    
-    // Clear selection
-    setState(() {
-      _selectedVerses.clear();
-      _isSelectionMode = false;
-    });
+  void _handleRemoveHighlight(BibleVerse verse) {
+    final verseKey = _getVerseKey(verse.verseNumber);
+    ref.read(highlightStoreProvider.notifier).removeHighlight(verseKey);
   }
 
   void _showChapterPicker() {
@@ -453,17 +602,29 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
         padding: const EdgeInsets.all(16),
         children: List.generate(maxChapters, (i) {
           final chapter = i + 1;
+          final chapterKey = '${_currentBookId}_$chapter';
+          final isBookmarked = ref.read(chapterBookmarkProvider).contains(chapterKey);
+          
           return GestureDetector(
             onTap: () {
               Navigator.pop(ctx);
               setState(() {
                 _currentChapter = chapter;
                 _versesFuture = _loadVerses();
-                _highlightsLoaded = false; // Reset so we load highlights for the new chapter
               });
             },
             child: Card(
-              child: Center(child: Text('$chapter')),
+              child: Stack(
+                children: [
+                  Center(child: Text('$chapter')),
+                  if (isBookmarked)
+                    const Positioned(
+                      top: 2,
+                      right: 2,
+                      child: Icon(Icons.bookmark, color: Colors.amber, size: 14),
+                    ),
+                ],
+              ),
             ),
           );
         }),

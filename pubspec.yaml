@@ -65,7 +65,6 @@ flutter:
   assets:
     - .env
     - assets/images/
-    - assets/bibles/
     - assets/fonts/
 
   fonts:
