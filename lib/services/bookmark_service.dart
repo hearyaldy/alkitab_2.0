@@ -7,7 +7,6 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
-import '../config/constants.dart';
 import '../models/bookmark_model.dart';
 import '../services/connectivity_service.dart';
 import '../services/sync_queue_processor.dart';

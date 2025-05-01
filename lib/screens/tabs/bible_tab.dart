@@ -3,8 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../services/bible_service.dart';
-import '../../models/bible_model.dart';
 
 class BibleTab extends ConsumerWidget {
   const BibleTab({super.key});

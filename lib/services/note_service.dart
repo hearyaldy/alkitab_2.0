@@ -11,7 +11,6 @@ import '../services/sync_queue_processor.dart';
 import '../services/connectivity_service.dart';
 import '../utils/offline_manager.dart';
 import '../utils/sync_conflict_resolver.dart';
-import '../config/constants.dart';
 
 class NoteService {
   final SyncQueueProcessor _syncQueueProcessor;
