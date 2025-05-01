@@ -1,13 +1,9 @@
-// lib/providers/connectivity_provider.dart
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/connectivity_service.dart';
 
 // Provider for the ConnectivityService instance
 final connectivityServiceProvider = Provider<ConnectivityService>((ref) {
-  final service = ConnectivityService();
-  ref.onDispose(() => service.dispose());
-  return service;
+  return ConnectivityService();
 });
 
 // Stream provider that exposes the online/offline status

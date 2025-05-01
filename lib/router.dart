@@ -10,7 +10,7 @@ import 'screens/tabs/bible_tab.dart';
 import 'screens/tabs/devotional_tab.dart';
 import 'screens/tabs/profile_tab.dart';
 import 'screens/settings/settings_screen.dart';
-import 'screens/bible/bible_reader_screen.dart';
+import 'screens/bible/bible_reader_screen.dart'; // Keep only this one
 import 'screens/bookmarks/bookmarks_screen.dart';
 
 final router = GoRouter(
