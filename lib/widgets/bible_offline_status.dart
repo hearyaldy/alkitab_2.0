@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/connectivity_provider.dart';
 import '../utils/offline_manager.dart';
-import '../constants/bible_data.dart';
 
 class BibleOfflineStatus extends ConsumerWidget {
   final String bookId;

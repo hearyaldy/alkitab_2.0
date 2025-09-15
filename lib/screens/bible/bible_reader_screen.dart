@@ -9,7 +9,9 @@ import 'package:alkitab_2_0/constants/bible_data.dart';
 import 'package:alkitab_2_0/services/bible_service.dart';
 import 'dart:convert';
 
-final highlightStoreProvider = StateNotifierProvider<HighlightStore, Map<String, String>>((ref) => HighlightStore());
+final highlightStoreProvider =
+    StateNotifierProvider<HighlightStore, Map<String, String>>(
+        (ref) => HighlightStore());
 
 class HighlightStore extends StateNotifier<Map<String, String>> {
   HighlightStore() : super({}) {
@@ -21,7 +23,8 @@ class HighlightStore extends StateNotifier<Map<String, String>> {
       final prefs = await SharedPreferences.getInstance();
       final highlightsJson = prefs.getString('bible_highlights');
       if (highlightsJson != null) {
-        final decodedMap = Map<String, dynamic>.from(json.decode(highlightsJson));
+        final decodedMap =
+            Map<String, dynamic>.from(json.decode(highlightsJson));
         state = decodedMap.map((key, value) => MapEntry(key, value.toString()));
       }
     } catch (e) {
@@ -51,7 +54,9 @@ class HighlightStore extends StateNotifier<Map<String, String>> {
   }
 }
 
-final chapterBookmarkProvider = StateNotifierProvider<ChapterBookmarkStore, Set<String>>((ref) => ChapterBookmarkStore());
+final chapterBookmarkProvider =
+    StateNotifierProvider<ChapterBookmarkStore, Set<String>>(
+        (ref) => ChapterBookmarkStore());
 
 class ChapterBookmarkStore extends StateNotifier<Set<String>> {
   ChapterBookmarkStore() : super({}) {
@@ -111,7 +116,9 @@ class ChapterBookmarkStore extends StateNotifier<Set<String>> {
   }
 }
 
-final verseBookmarkProvider = StateNotifierProvider<VerseBookmarkStore, Set<String>>((ref) => VerseBookmarkStore());
+final verseBookmarkProvider =
+    StateNotifierProvider<VerseBookmarkStore, Set<String>>(
+        (ref) => VerseBookmarkStore());
 
 class VerseBookmarkStore extends StateNotifier<Set<String>> {
   VerseBookmarkStore() : super({}) {
@@ -180,11 +187,11 @@ class BibleReaderScreen extends ConsumerStatefulWidget {
   final int? scrollToVerse;
 
   const BibleReaderScreen({
-    Key? key,
+    super.key,
     required this.bookId,
     required this.chapterId,
     this.scrollToVerse,
-  }) : super(key: key);
+  });
 
   @override
   ConsumerState<BibleReaderScreen> createState() => _BibleReaderScreenState();
@@ -278,7 +285,7 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
         (book) => book['id'] == currentBookId,
         orElse: () => bibleBooks.first,
       );
-      
+
       final maxChapters = bookData['chapters'] as int;
       if (currentChapterId > maxChapters) {
         currentChapterId = 1;
@@ -393,10 +400,13 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
 
   Widget _buildColorOption(
       BuildContext context, String verseKey, String colorHex, String name) {
-    final color = Color(int.parse(colorHex.substring(1), radix: 16) | 0xFF000000);
+    final color =
+        Color(int.parse(colorHex.substring(1), radix: 16) | 0xFF000000);
     return InkWell(
       onTap: () {
-        ref.read(highlightStoreProvider.notifier).addHighlight(verseKey, colorHex);
+        ref
+            .read(highlightStoreProvider.notifier)
+            .addHighlight(verseKey, colorHex);
         Navigator.pop(context);
       },
       child: Padding(
@@ -448,8 +458,9 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
 
   void _showVerseActions(BibleVerse verse) {
     final verseKey = '${currentBookId}_${currentChapterId}_${verse.verseId}';
-    final isBookmarked = ref.read(verseBookmarkProvider.notifier).isVerseBookmarked(verseKey);
-    
+    final isBookmarked =
+        ref.read(verseBookmarkProvider.notifier).isVerseBookmarked(verseKey);
+
     showModalBottomSheet(
       context: context,
       builder: (context) {
@@ -483,7 +494,9 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                     isBookmarked ? Icons.bookmark : Icons.bookmark_border,
                     isBookmarked ? 'Tersimpan' : 'Simpan',
                     () {
-                      ref.read(verseBookmarkProvider.notifier).toggleVerseBookmark(verseKey);
+                      ref
+                          .read(verseBookmarkProvider.notifier)
+                          .toggleVerseBookmark(verseKey);
                       Navigator.pop(context);
                     },
                   ),
@@ -494,7 +507,8 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                     () {
                       // Implement copy functionality
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Ayat tersalin ke clipboard')),
+                        const SnackBar(
+                            content: Text('Ayat tersalin ke clipboard')),
                       );
                       Navigator.pop(context);
                     },
@@ -537,21 +551,23 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
       isLoading = true;
       currentTranslation = translationId;
     });
-    
+
     await bibleService.setCurrentTranslation(translationId);
     ref.read(currentTranslationProvider.notifier).state = translationId;
-    
+
     loadChapterContent();
   }
 
   Widget _buildVerseItem(BibleVerse verse) {
     final verseKey = '${currentBookId}_${currentChapterId}_${verse.verseId}';
     final highlightColor = ref.watch(highlightStoreProvider)[verseKey];
-    final isBookmarked = ref.watch(verseBookmarkProvider.notifier).isVerseBookmarked(verseKey);
-    
+    final isBookmarked =
+        ref.watch(verseBookmarkProvider.notifier).isVerseBookmarked(verseKey);
+
     Color? backgroundColor;
     if (highlightColor != null) {
-      final color = Color(int.parse(highlightColor.substring(1), radix: 16) | 0xFF000000);
+      final color =
+          Color(int.parse(highlightColor.substring(1), radix: 16) | 0xFF000000);
       backgroundColor = color.withOpacity(0.3);
     }
 
@@ -630,22 +646,23 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
   @override
   Widget build(BuildContext context) {
     final chapterKey = '${currentBookId}_$currentChapterId';
-    final isChapterBookmarked = ref.watch(chapterBookmarkProvider.notifier).isChapterBookmarked(chapterKey);
+    final isChapterBookmarked = ref
+        .watch(chapterBookmarkProvider.notifier)
+        .isChapterBookmarked(chapterKey);
 
     final bookData = bibleBooks.firstWhere(
       (book) => book['id'] == currentBookId,
       orElse: () => bibleBooks.first,
     );
-    
+
     final bookName = bookData['name'] as String;
     final maxChapters = bookData['chapters'] as int;
 
     // Translation display name
-    final translationName = bibleService.availableTranslations
-        .firstWhere(
-          (t) => t['id'] == currentTranslation,
-          orElse: () => {'name': 'Alkitab'},
-        )['name'];
+    final translationName = bibleService.availableTranslations.firstWhere(
+      (t) => t['id'] == currentTranslation,
+      orElse: () => {'name': 'Alkitab'},
+    )['name'];
 
     return Scaffold(
       appBar: AppBar(
@@ -658,16 +675,23 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.normal,
-                color: Theme.of(context).appBarTheme.titleTextStyle?.color?.withOpacity(0.8),
+                color: Theme.of(context)
+                    .appBarTheme
+                    .titleTextStyle
+                    ?.color
+                    ?.withOpacity(0.8),
               ),
             ),
           ],
         ),
         actions: [
           IconButton(
-            icon: Icon(isChapterBookmarked ? Icons.bookmark : Icons.bookmark_border),
+            icon: Icon(
+                isChapterBookmarked ? Icons.bookmark : Icons.bookmark_border),
             onPressed: () {
-              ref.read(chapterBookmarkProvider.notifier).toggleChapterBookmark(chapterKey);
+              ref
+                  .read(chapterBookmarkProvider.notifier)
+                  .toggleChapterBookmark(chapterKey);
             },
           ),
           PopupMenuButton(
@@ -691,6 +715,7 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                 },
               ),
               PopupMenuItem(
+                onTap: _toggleReading,
                 child: Row(
                   children: [
                     Icon(
@@ -701,7 +726,6 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                     Text(isPlaying ? 'Hentikan Pembacaan' : 'Mulai Pembacaan'),
                   ],
                 ),
-                onTap: _toggleReading,
               ),
               PopupMenuItem(
                 child: const Text('Pergi ke Ayat'),
@@ -738,7 +762,8 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                 IconButton(
                   icon: const Icon(Icons.arrow_back_ios),
                   onPressed: currentChapterId > 1
-                      ? () => _navigateToChapter(currentBookId, currentChapterId - 1)
+                      ? () => _navigateToChapter(
+                          currentBookId, currentChapterId - 1)
                       : null,
                 ),
                 DropdownButton<String>(
@@ -749,7 +774,8 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                       _navigateToChapter(newValue, 1);
                     }
                   },
-                  items: bibleBooks.map<DropdownMenuItem<String>>((Map<String, dynamic> book) {
+                  items: bibleBooks.map<DropdownMenuItem<String>>(
+                      (Map<String, dynamic> book) {
                     return DropdownMenuItem<String>(
                       value: book['id'] as String,
                       child: Text(book['name'] as String),
@@ -775,7 +801,8 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                 IconButton(
                   icon: const Icon(Icons.arrow_forward_ios),
                   onPressed: currentChapterId < maxChapters
-                      ? () => _navigateToChapter(currentBookId, currentChapterId + 1)
+                      ? () => _navigateToChapter(
+                          currentBookId, currentChapterId + 1)
                       : null,
                 ),
               ],
@@ -788,7 +815,9 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                 : verses.isEmpty
                     ? const Center(child: Text('Tidak ada ayat yang ditemukan'))
                     : ListView.builder(
-                        controller: _scrollControllers.isNotEmpty ? _scrollControllers[0] : null,
+                        controller: _scrollControllers.isNotEmpty
+                            ? _scrollControllers[0]
+                            : null,
                         padding: const EdgeInsets.all(16.0),
                         itemCount: verses.length,
                         itemBuilder: (context, index) {
@@ -867,7 +896,9 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
               return ListTile(
                 title: Text(translation['name'] as String),
                 subtitle: Text(translation['language'] as String),
-                trailing: isSelected ? const Icon(Icons.check, color: Colors.green) : null,
+                trailing: isSelected
+                    ? const Icon(Icons.check, color: Colors.green)
+                    : null,
                 onTap: () {
                   _changeTranslation(translation['id'] as String);
                   Navigator.pop(context);

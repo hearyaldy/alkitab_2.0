@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:alkitab_2_0/models/bible_model.dart';
@@ -41,27 +40,27 @@ class BibleService {
           .order('verse_id');
 
       final List<BibleVerse> result = [];
-      
+
       for (final item in response) {
         result.add(BibleVerse.fromJson(item));
       }
 
       // Cache the data
       _verseCache[cacheKey] = result;
-      
+
       // Save to local storage for offline access
       _saveToLocalStorage(cacheKey, result);
-      
+
       return result;
     } catch (e) {
       debugPrint('Error fetching verses: $e');
-      
+
       // Fallback to local storage if available
       final verses = await _loadFromLocalStorage(cacheKey);
       if (verses.isNotEmpty) {
         return verses;
       }
-      
+
       return [];
     }
   }
@@ -82,7 +81,7 @@ class BibleService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final jsonString = prefs.getString('bible_verses_$key');
-      
+
       if (jsonString != null) {
         final jsonList = jsonDecode(jsonString) as List;
         return jsonList.map((item) => BibleVerse.fromJson(item)).toList();
@@ -90,7 +89,7 @@ class BibleService {
     } catch (e) {
       debugPrint('Error loading verses from local storage: $e');
     }
-    
+
     return [];
   }
 
@@ -105,7 +104,9 @@ class BibleService {
           .textSearch('text', term)
           .limit(100);
 
-      return response.map<BibleVerse>((item) => BibleVerse.fromJson(item)).toList();
+      return response
+          .map<BibleVerse>((item) => BibleVerse.fromJson(item))
+          .toList();
     } catch (e) {
       debugPrint('Error searching Bible: $e');
       return [];
@@ -131,7 +132,7 @@ class BibleService {
         final bookId = bookmark['book_id'];
         final chapterId = bookmark['chapter_id'];
         final verseId = bookmark['verse_id'];
-        
+
         if (verseId != null) {
           final verseResponse = await supabase
               .from('bible_verses')
@@ -140,11 +141,11 @@ class BibleService {
               .eq('chapter_id', chapterId)
               .eq('verse_id', verseId)
               .single();
-          
+
           verses.add(BibleVerse.fromJson(verseResponse));
         }
       }
-      
+
       return verses;
     } catch (e) {
       debugPrint('Error fetching bookmarked verses: $e');
@@ -167,14 +168,16 @@ class BibleService {
           .isFilter('verse_id', null)
           .order('created_at', ascending: false);
 
-      return response.map<Map<String, dynamic>>((item) => {
-        'book_id': item['book_id'],
-        'chapter_id': item['chapter_id'],
-        'book_name': bibleBooks.firstWhere(
-          (book) => book['id'] == item['book_id'],
-          orElse: () => {'name': item['book_id']},
-        )['name'],
-      }).toList();
+      return response
+          .map<Map<String, dynamic>>((item) => {
+                'book_id': item['book_id'],
+                'chapter_id': item['chapter_id'],
+                'book_name': bibleBooks.firstWhere(
+                  (book) => book['id'] == item['book_id'],
+                  orElse: () => {'name': item['book_id']},
+                )['name'],
+              })
+          .toList();
     } catch (e) {
       debugPrint('Error fetching bookmarked chapters: $e');
       return [];
@@ -189,7 +192,8 @@ class BibleService {
     try {
       // Load local bookmarks
       final prefs = await SharedPreferences.getInstance();
-      final chapterBookmarks = prefs.getStringList('bible_chapter_bookmarks') ?? [];
+      final chapterBookmarks =
+          prefs.getStringList('bible_chapter_bookmarks') ?? [];
       final verseBookmarks = prefs.getStringList('bible_verse_bookmarks') ?? [];
 
       // Fetch remote bookmarks
@@ -203,17 +207,17 @@ class BibleService {
       for (final bookmark in chapterBookmarks) {
         final parts = bookmark.split('_');
         if (parts.length != 2) continue;
-        
+
         final bookId = parts[0];
         final chapterId = int.parse(parts[1]);
-        
+
         // Check if already exists remotely
-        final exists = remoteBookmarks.any((b) => 
-          b['book_id'] == bookId && 
-          b['chapter_id'] == chapterId && 
-          b['verse_id'] == null &&
-          b['bookmark_type'] == 'bible_chapter');
-          
+        final exists = remoteBookmarks.any((b) =>
+            b['book_id'] == bookId &&
+            b['chapter_id'] == chapterId &&
+            b['verse_id'] == null &&
+            b['bookmark_type'] == 'bible_chapter');
+
         if (!exists) {
           // Add to remote
           await supabase.from('user_bookmarks').insert({
@@ -233,18 +237,18 @@ class BibleService {
       for (final bookmark in verseBookmarks) {
         final parts = bookmark.split('_');
         if (parts.length != 3) continue;
-        
+
         final bookId = parts[0];
         final chapterId = int.parse(parts[1]);
         final verseId = int.parse(parts[2]);
-        
+
         // Check if already exists remotely
-        final exists = remoteBookmarks.any((b) => 
-          b['book_id'] == bookId && 
-          b['chapter_id'] == chapterId && 
-          b['verse_id'] == verseId &&
-          b['bookmark_type'] == 'bible_verse');
-          
+        final exists = remoteBookmarks.any((b) =>
+            b['book_id'] == bookId &&
+            b['chapter_id'] == chapterId &&
+            b['verse_id'] == verseId &&
+            b['bookmark_type'] == 'bible_verse');
+
         if (!exists) {
           // Add to remote
           await supabase.from('user_bookmarks').insert({
@@ -259,17 +263,17 @@ class BibleService {
           });
         }
       }
-      
+
       // Now check for remote bookmarks that need to be added locally
       List<String> newChapterBookmarks = List.from(chapterBookmarks);
       List<String> newVerseBookmarks = List.from(verseBookmarks);
-      
+
       for (final bookmark in remoteBookmarks) {
         final bookId = bookmark['book_id'];
         final chapterId = bookmark['chapter_id'];
         final verseId = bookmark['verse_id'];
         final bookmarkType = bookmark['bookmark_type'];
-        
+
         if (bookmarkType == 'bible_chapter' && verseId == null) {
           final key = '${bookId}_$chapterId';
           if (!newChapterBookmarks.contains(key)) {
@@ -282,12 +286,13 @@ class BibleService {
           }
         }
       }
-      
+
       // Save updated local bookmarks
       if (newChapterBookmarks.length != chapterBookmarks.length) {
-        await prefs.setStringList('bible_chapter_bookmarks', newChapterBookmarks);
+        await prefs.setStringList(
+            'bible_chapter_bookmarks', newChapterBookmarks);
       }
-      
+
       if (newVerseBookmarks.length != verseBookmarks.length) {
         await prefs.setStringList('bible_verse_bookmarks', newVerseBookmarks);
       }

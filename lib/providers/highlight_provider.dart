@@ -1,6 +1,5 @@
 // lib/providers/highlight_provider.dart
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:alkitab_2_0/models/highlight_model.dart';
 import 'package:alkitab_2_0/services/highlight_service.dart';
@@ -11,21 +10,28 @@ final highlightListProvider = FutureProvider<List<HighlightModel>>((ref) async {
 });
 
 // Highlights for specific chapter
-final chapterHighlightsProvider = FutureProvider.family<List<HighlightModel>, (String, int)>((ref, tuple) async {
+final chapterHighlightsProvider =
+    FutureProvider.family<List<HighlightModel>, (String, int)>(
+        (ref, tuple) async {
   final (bookId, chapterId) = tuple;
   return await HighlightService.getChapterHighlights(bookId, chapterId);
 });
 
 // Specific verse highlight color
-final verseHighlightProvider = FutureProvider.family<HighlightModel?, (String, int, int)>((ref, tuple) async {
+final verseHighlightProvider =
+    FutureProvider.family<HighlightModel?, (String, int, int)>(
+        (ref, tuple) async {
   final (bookId, chapterId, verseNumber) = tuple;
-  return await HighlightService.getVerseHighlight(bookId, chapterId, verseNumber);
+  return await HighlightService.getVerseHighlight(
+      bookId, chapterId, verseNumber);
 });
 
 // A simpler provider that just returns the color as a string
-final highlightColorProvider = FutureProvider.family<String?, (String, int, int)>((ref, tuple) async {
+final highlightColorProvider =
+    FutureProvider.family<String?, (String, int, int)>((ref, tuple) async {
   final (bookId, chapterId, verseNumber) = tuple;
-  final highlight = await HighlightService.getVerseHighlight(bookId, chapterId, verseNumber);
+  final highlight =
+      await HighlightService.getVerseHighlight(bookId, chapterId, verseNumber);
   return highlight?.colorHex;
 });
 
@@ -33,7 +39,8 @@ final highlightColorProvider = FutureProvider.family<String?, (String, int, int)
 final highlightRefreshProvider = StateProvider<int>((ref) => 0);
 
 // Helper function to add a highlight
-Future<void> addHighlight(WidgetRef ref, {
+Future<void> addHighlight(
+  WidgetRef ref, {
   required String bookId,
   required int chapterId,
   required int verseNumber,
@@ -47,10 +54,10 @@ Future<void> addHighlight(WidgetRef ref, {
     colorHex: colorHex,
     note: verseText,
   );
-  
+
   // Increment refresh counter to trigger UI updates
   ref.read(highlightRefreshProvider.notifier).state++;
-  
+
   // Invalidate related providers
   ref.invalidate(highlightListProvider);
   ref.invalidate(chapterHighlightsProvider((bookId, chapterId)));
@@ -59,16 +66,17 @@ Future<void> addHighlight(WidgetRef ref, {
 }
 
 // Helper function to remove a highlight
-Future<void> removeHighlight(WidgetRef ref, {
+Future<void> removeHighlight(
+  WidgetRef ref, {
   required String bookId,
   required int chapterId,
   required int verseNumber,
 }) async {
   await HighlightService.removeHighlight(bookId, chapterId, verseNumber);
-  
+
   // Increment refresh counter to trigger UI updates
   ref.read(highlightRefreshProvider.notifier).state++;
-  
+
   // Invalidate related providers
   ref.invalidate(highlightListProvider);
   ref.invalidate(chapterHighlightsProvider((bookId, chapterId)));
@@ -79,10 +87,10 @@ Future<void> removeHighlight(WidgetRef ref, {
 // Sync all highlights with Supabase
 final syncHighlightProvider = FutureProvider<void>((ref) async {
   await HighlightService.syncAllHighlights();
-  
+
   // Increment refresh counter to trigger UI updates
   ref.read(highlightRefreshProvider.notifier).state++;
-  
+
   // Invalidate all highlight providers
   ref.invalidate(highlightListProvider);
 });

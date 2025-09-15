@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:alkitab_2_0/models/highlight_model.dart';
-import 'package:alkitab_2_0/constants/bible_data.dart';
 
 class HighlightService {
   // Hive box name
