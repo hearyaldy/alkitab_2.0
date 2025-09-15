@@ -23,8 +23,8 @@ Future<void> main() async {
   await Hive.initFlutter();
 
   try {
-    await LocalStorageService.initialize();
-    await OfflineManager().initialize(); // ✅ Important!
+    await LocalStorageService.initialize().timeout(const Duration(seconds: 10));
+    await OfflineManager().initialize().timeout(const Duration(seconds: 10)); // ✅ Important!
 
     _registerHiveAdapters();
 
@@ -42,10 +42,21 @@ Future<void> main() async {
     await dotenv.load();
     await initializeDateFormatting('ms', null);
 
-    await Supabase.initialize(
-      url: dotenv.env['SUPABASE_URL']!,
-      anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
-    );
+    // Only initialize Supabase if valid credentials are provided
+    final supabaseUrl = dotenv.env['SUPABASE_URL'];
+    final supabaseKey = dotenv.env['SUPABASE_ANON_KEY'];
+
+    if (supabaseUrl != null &&
+        supabaseKey != null &&
+        supabaseUrl != 'your_supabase_url_here' &&
+        supabaseKey != 'your_supabase_anon_key_here') {
+      await Supabase.initialize(
+        url: supabaseUrl,
+        anonKey: supabaseKey,
+      );
+    } else {
+      print('Warning: Supabase credentials not configured. Running in offline mode.');
+    }
 
     runApp(const ProviderScope(child: MyApp()));
   } catch (e) {

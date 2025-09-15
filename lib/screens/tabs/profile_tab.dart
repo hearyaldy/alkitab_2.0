@@ -70,7 +70,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
           );
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('profile_photo', publicUrl);
-          ref.read(profilePhotoProvider.notifier).state = publicUrl;
+          ref.read(profilePhotoProvider.notifier).updateProfilePhoto(publicUrl);
           setState(() {
             _profileImage = null;
             _photoUrl = publicUrl;
