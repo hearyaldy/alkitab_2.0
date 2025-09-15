@@ -228,7 +228,7 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
   }
 
   Future<void> _loadCurrentTranslation() async {
-    final translation = await bibleService.getCurrentTranslation();
+    final translation = bibleService.getCurrentTranslation();
     setState(() {
       currentTranslation = translation;
     });
@@ -294,7 +294,6 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
       verses = await bibleService.getChapterVerses(
         currentBookId,
         currentChapterId,
-        translationId: currentTranslation,
       );
 
       // Create scroll controllers for each translation
@@ -552,7 +551,7 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
       currentTranslation = translationId;
     });
 
-    await bibleService.setCurrentTranslation(translationId);
+    bibleService.setCurrentTranslation(translationId);
     ref.read(currentTranslationProvider.notifier).state = translationId;
 
     loadChapterContent();
@@ -671,7 +670,7 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
           children: [
             Text('$bookName $currentChapterId'),
             Text(
-              translationName,
+              translationName ?? 'Alkitab',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.normal,

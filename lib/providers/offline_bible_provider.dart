@@ -14,12 +14,8 @@ class OfflineBibleProvider extends StateNotifier<List<BibleVerse>> {
     String version = 'ABB',
   }) async {
     try {
-      // Use the static method correctly
-      final verses = await BibleService.fetchVerses(
-        bookId: bookId,
-        chapterId: chapterId,
-        version: version,
-      );
+      // Use the instance method correctly
+      final verses = await _bibleService.fetchVerses(bookId, chapterId);
       state = verses;
     } catch (e) {
       state = [];

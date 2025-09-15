@@ -51,7 +51,7 @@ class BibleBookmarksList extends StatelessWidget {
 
       final shareText = '$reference - $verseText\n\nShared from My Faith App';
 
-      await Share.share(shareText);
+      await SharePlus.instance.share(ShareParams(text: shareText));
     } catch (e) {
       debugPrint('Share error: $e');
       if (context.mounted) {

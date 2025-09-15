@@ -11,6 +11,31 @@ class BibleService {
   // Cache for verses to avoid repeated API calls
   final Map<String, List<BibleVerse>> _verseCache = {};
 
+  // Current translation state
+  String _currentTranslation = 'indo_tb';
+
+  // Available translations
+  final List<Map<String, String>> _availableTranslations = [
+    {'id': 'indo_tb', 'name': 'Terjemahan Baru'},
+    {'id': 'indo_tm', 'name': 'Terjemahan Masa Kini'},
+  ];
+
+  // Getters for compatibility
+  String getCurrentTranslation() => _currentTranslation;
+  List<Map<String, String>> get availableTranslations => _availableTranslations;
+
+  // Setter for current translation
+  void setCurrentTranslation(String translationId) {
+    if (_availableTranslations.any((t) => t['id'] == translationId)) {
+      _currentTranslation = translationId;
+    }
+  }
+
+  // Add fetchVerses method for compatibility
+  Future<List<BibleVerse>> fetchVerses(String bookId, int chapterId) async {
+    return getChapterVerses(bookId, chapterId);
+  }
+
   // Get verses for a specific chapter
   Future<List<BibleVerse>> getChapterVerses(
     String bookId,

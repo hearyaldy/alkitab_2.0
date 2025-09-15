@@ -270,7 +270,7 @@ class _HomeTabState extends State<HomeTab> {
                     final verse = _todayDevo?['verse_text'] ?? '';
                     final reference = _todayDevo?['verse_reference'] ?? '';
                     final content = '"$verse"\n\n📖 $reference';
-                    Share.share(content, subject: 'Verse of the Day');
+                    SharePlus.instance.share(ShareParams(text: content, subject: 'Verse of the Day'));
                   },
                 ),
               ],

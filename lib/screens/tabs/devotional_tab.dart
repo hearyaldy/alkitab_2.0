@@ -183,7 +183,7 @@ $text
 🙏 $prayer
 ''';
 
-    Share.share(content, subject: title);
+    SharePlus.instance.share(ShareParams(text: content, subject: title));
   }
 
   void _showDevotionalDetails(DevotionalModel devotional) {

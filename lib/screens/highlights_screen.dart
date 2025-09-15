@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:alkitab_2_0/models/highlight_model.dart';
 import 'package:alkitab_2_0/providers/highlight_provider.dart';
+import 'package:alkitab_2_0/constants/bible_data.dart';
 
 class HighlightsScreen extends ConsumerWidget {
   const HighlightsScreen({super.key});
@@ -25,7 +26,7 @@ class HighlightsScreen extends ConsumerWidget {
             itemCount: highlights.length,
             itemBuilder: (context, index) {
               final highlight = highlights[index];
-              final bookName = getBookName(highlight.bookId);
+              final bookName = getBookNameById(highlight.bookId);
               final refText =
                   '$bookName ${highlight.chapterId}:${highlight.verseNumber}';
 

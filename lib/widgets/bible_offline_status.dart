@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/connectivity_provider.dart';
 import '../utils/offline_manager.dart';
+import '../constants/bible_data.dart';
 
 class BibleOfflineStatus extends ConsumerWidget {
   final String bookId;
@@ -78,7 +79,7 @@ class BibleOfflineStatus extends ConsumerWidget {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            '${getBookName(bookId)} $chapterId not available offline',
+                            '${getBookNameById(bookId)} $chapterId not available offline',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: Colors.orange.shade800,
@@ -176,7 +177,7 @@ class BibleDownloadProgress extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Downloading ${getBookName(bookId)} $chapterId',
+                  'Downloading ${getBookNameById(bookId)} $chapterId',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: Colors.blue.shade700,

@@ -66,7 +66,7 @@ class DevotionalBookmarksList extends StatelessWidget {
         shareText = 'Devotional bookmark from My Faith App';
       }
 
-      await Share.share(shareText);
+      await SharePlus.instance.share(ShareParams(text: shareText));
     } catch (e) {
       debugPrint('Share error: $e');
       if (context.mounted) {

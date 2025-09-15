@@ -85,6 +85,9 @@ class BibleVerse extends HiveObject {
     required this.text,
   });
 
+  // Add verseId getter for compatibility
+  int get verseId => verseNumber;
+
   factory BibleVerse.fromJson(Map<String, dynamic> json) {
     return BibleVerse(
       id: json['verse'] ?? json['id'] ?? 0,
