@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../constants/bible_data.dart';
+import '../../services/mock_data_service.dart';
 
 class HomeTab extends StatefulWidget {
   const HomeTab({super.key});
@@ -105,16 +106,29 @@ class _HomeTabState extends State<HomeTab> {
         }
       }
 
-      _devotionals = combined;
-      _todayDevo = _pickTodayDevo(combined);
+      if (combined.isNotEmpty) {
+        _devotionals = combined;
+        _todayDevo = _pickTodayDevo(combined);
 
-      await prefs.setString('cached_devotionals', jsonEncode(_devotionals));
-      await prefs.setInt('cached_devotionals_time', now);
+        await prefs.setString('cached_devotionals', jsonEncode(_devotionals));
+        await prefs.setInt('cached_devotionals_time', now);
 
-      debugPrint('Downloaded and cached devotionals.');
+        debugPrint('Downloaded and cached devotionals.');
+        return;
+      }
     } catch (e) {
-      debugPrint('Error loading devotionals: $e');
+      debugPrint('Error loading devotionals from Supabase: $e');
     }
+
+    // Fallback to mock data
+    debugPrint('Using mock devotional data for home tab.');
+    await MockDataService.initialize();
+    final mockDevotionals = MockDataService.getDevotionals();
+    _devotionals = mockDevotionals.map((d) => d.toJson()).toList();
+    _todayDevo = _pickTodayDevo(_devotionals);
+
+    await prefs.setString('cached_devotionals', jsonEncode(_devotionals));
+    await prefs.setInt('cached_devotionals_time', now);
   }
 
   Map<String, dynamic>? _pickTodayDevo(List<Map<String, dynamic>> list) {
@@ -133,6 +147,12 @@ class _HomeTabState extends State<HomeTab> {
         .reversed
         .take(5)
         .toList();
+
+    // If no reading history, use mock data
+    if (_recentReadings.isEmpty) {
+      await MockDataService.initialize();
+      _recentReadings = MockDataService.getRecentReadings();
+    }
   }
 
   Future<void> _refreshDevotionals() async {
@@ -145,6 +165,159 @@ class _HomeTabState extends State<HomeTab> {
         );
       });
     }
+  }
+
+  void _performSearch(String query) {
+    if (query.trim().isEmpty) return;
+
+    final results = _searchBibleText(query);
+    _showSearchResults(query, results);
+  }
+
+  List<Map<String, dynamic>> _searchBibleText(String query) {
+    if (_bibleData == null) return [];
+
+    final List<dynamic> verses = _bibleData?['verses'] ?? [];
+    final results = <Map<String, dynamic>>[];
+
+    for (final verse in verses) {
+      if (verse is Map<String, dynamic> &&
+          verse['text'] != null &&
+          verse['text'].toString().toLowerCase().contains(query.toLowerCase())) {
+        results.add({
+          'text': verse['text'],
+          'reference': '${verse['book_name']} ${verse['chapter']}:${verse['verse']}',
+          'book_name': verse['book_name'],
+          'chapter': verse['chapter'],
+          'verse': verse['verse'],
+        });
+      }
+    }
+
+    return results.take(50).toList(); // Limit to 50 results
+  }
+
+  void _showSearchResults(String query, List<Map<String, dynamic>> results) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.7,
+        maxChildSize: 0.9,
+        builder: (context, scrollController) => Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).primaryColor,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.search, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Hasil Pencarian: "$query"',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '${results.length} hasil',
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: results.isEmpty
+                  ? const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.search_off, size: 64, color: Colors.grey),
+                          SizedBox(height: 16),
+                          Text(
+                            'Tidak ada hasil ditemukan',
+                            style: TextStyle(fontSize: 16, color: Colors.grey),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Coba kata kunci yang berbeda',
+                            style: TextStyle(fontSize: 14, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: scrollController,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: results.length,
+                      itemBuilder: (context, index) {
+                        final result = results[index];
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () {
+                              Navigator.pop(context);
+                              // Navigate to the specific verse
+                              final bookName = result['book_name'];
+                              final chapter = result['chapter'];
+                              final bookData = bibleBooks.firstWhere(
+                                (book) => book['name'] == bookName,
+                                orElse: () => bibleBooks.first,
+                              );
+                              context.go('/bible-reader?bookId=${bookData['id']}&chapterId=$chapter');
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    result['reference'] ?? '',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: Theme.of(context).primaryColor,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    result['text'] ?? '',
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -249,7 +422,7 @@ class _HomeTabState extends State<HomeTab> {
           fit: StackFit.expand,
           children: [
             Image(image: _headerImage, fit: BoxFit.cover),
-            Container(color: Colors.black.withOpacity(0.4)),
+            Container(color: Colors.black.withValues(alpha: 0.4)),
           ],
         ),
       ),
@@ -257,69 +430,210 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   Widget _buildMainContent() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _verseOfDayCard(),
-          const SizedBox(height: 24),
-          _bibleStatsCard(),
-          const SizedBox(height: 24),
-          _bibleBooksSection(),
-          const SizedBox(height: 24),
-          _continueReadingSection(),
-          const SizedBox(height: 24),
-          _devotionalSection(),
+    return Column(
+      children: [
+        // Search field under header
+        _buildSearchField(),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _verseOfDayCard(),
+              const SizedBox(height: 24),
+              _bibleStatsCard(),
+              const SizedBox(height: 24),
+              _bibleBooksSection(),
+              const SizedBox(height: 24),
+              _continueReadingSection(),
+              const SizedBox(height: 24),
+              _devotionalSection(),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSearchField() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(25),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
         ],
+      ),
+      child: TextField(
+        onSubmitted: (query) => _performSearch(query),
+        decoration: InputDecoration(
+          hintText: 'Cari ayat Alkitab atau kata...',
+          hintStyle: TextStyle(color: Colors.grey[500]),
+          prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
+          suffixIcon: PopupMenuButton<String>(
+            icon: Icon(Icons.filter_list, color: Colors.grey[600]),
+            onSelected: (value) {
+              // Handle filter selection
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'verse',
+                child: Row(
+                  children: [
+                    Icon(Icons.format_quote),
+                    SizedBox(width: 8),
+                    Text('Cari Ayat'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'word',
+                child: Row(
+                  children: [
+                    Icon(Icons.text_fields),
+                    SizedBox(width: 8),
+                    Text('Cari Kata'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'book',
+                child: Row(
+                  children: [
+                    Icon(Icons.book),
+                    SizedBox(width: 8),
+                    Text('Cari Kitab'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        ),
       ),
     );
   }
 
   Widget _verseOfDayCard() {
     return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.wb_sunny,
-                    color: Theme.of(context).colorScheme.primary),
-                const SizedBox(width: 8),
-                const Text('Verse of the Day',
-                    style:
-                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.share),
-                  tooltip: 'Share verse',
-                  onPressed: () {
-                    final verse = _randomVerse.isNotEmpty ? _randomVerse : _todayDevo?['verse_text'] ?? '';
-                    final reference = _randomVerseRef.isNotEmpty ? _randomVerseRef : _todayDevo?['verse_reference'] ?? '';
-                    final content = '"$verse"\n\n📖 $reference\n\nShared from Alkitab 2.0';
-                    SharePlus.instance.share(ShareParams(text: content, subject: 'Verse of the Day'));
-                  },
+      elevation: 8,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0xFF4A90E2), // Beautiful blue
+              const Color(0xFF357ABD), // Deeper blue
+              const Color(0xFF2E6BA6), // Even deeper blue
+            ],
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.auto_stories,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Ayat Hari Ini',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.share, color: Colors.white),
+                      tooltip: 'Share verse',
+                      onPressed: () {
+                        final verse = _randomVerse.isNotEmpty ? _randomVerse : _todayDevo?['verse_text'] ?? '';
+                        final reference = _randomVerseRef.isNotEmpty ? _randomVerseRef : _todayDevo?['verse_reference'] ?? '';
+                        final content = '"$verse"\n\n📖 $reference\n\nDibagikan dari Alkitab 2.0';
+                        SharePlus.instance.share(ShareParams(text: content, subject: 'Ayat Hari Ini'));
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.3),
+                    width: 1,
+                  ),
                 ),
-              ],
-            ),
-            const Divider(),
-            const SizedBox(height: 8),
-            Text('"${_randomVerse.isNotEmpty ? _randomVerse : _todayDevo?['verse_text'] ?? 'Loading...'}"',
-                style:
-                    const TextStyle(fontSize: 16, fontStyle: FontStyle.italic)),
-            const SizedBox(height: 8),
-            Text(
-              _randomVerseRef.isNotEmpty ? _randomVerseRef : _todayDevo?['verse_reference'] ?? '',
-              style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant),
-            ),
-          ],
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '"${_randomVerse.isNotEmpty ? _randomVerse : _todayDevo?['verse_text'] ?? 'Memuat ayat...'}"',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontStyle: FontStyle.italic,
+                        color: Colors.white,
+                        height: 1.5,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.9),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          _randomVerseRef.isNotEmpty ? _randomVerseRef : _todayDevo?['verse_reference'] ?? '',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF2E6BA6),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -378,7 +692,7 @@ class _HomeTabState extends State<HomeTab> {
         Text(label,
           style: TextStyle(
             fontSize: 12,
-            color: Theme.of(context).colorScheme.onSecondaryContainer.withOpacity(0.7),
+            color: Theme.of(context).colorScheme.onSecondaryContainer.withValues(alpha: 0.7),
           )),
       ],
     );
@@ -418,7 +732,7 @@ class _HomeTabState extends State<HomeTab> {
                         Text('39 Books',
                           style: TextStyle(
                             fontSize: 12,
-                            color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.7),
+                            color: Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.7),
                           )),
                       ],
                     ),
@@ -452,7 +766,7 @@ class _HomeTabState extends State<HomeTab> {
                         Text('27 Books',
                           style: TextStyle(
                             fontSize: 12,
-                            color: Theme.of(context).colorScheme.onTertiaryContainer.withOpacity(0.7),
+                            color: Theme.of(context).colorScheme.onTertiaryContainer.withValues(alpha: 0.7),
                           )),
                       ],
                     ),
@@ -556,24 +870,209 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   Widget _devotionalSection() {
+    final recentDevotionals = _devotionals.where((d) => d != _todayDevo).take(3).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Daily Devotionals',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Daily Devotionals',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            TextButton(
+              onPressed: () => context.go('/devotional'),
+              child: const Text('View All'),
+            ),
+          ],
+        ),
         const SizedBox(height: 12),
-        ..._devotionals.where((d) => d != _todayDevo).take(2).map((dev) => Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-              child: ListTile(
-                title: Text(dev['title'] ?? 'Untitled'),
-                subtitle: Text(dev['verse_reference'] ?? ''),
-                trailing: const Text('Earlier'),
-                onTap: () => _showDevotionalDetails(dev),
-              ),
-            )),
+        if (_todayDevo != null) ...[
+          _buildTodayDevotionalCard(_todayDevo!),
+          const SizedBox(height: 16),
+        ],
+        if (recentDevotionals.isNotEmpty) ...[
+          const Text('Recent Devotionals',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          ...recentDevotionals.map((dev) => _buildDevotionalCard(dev)),
+        ],
       ],
+    );
+  }
+
+  Widget _buildTodayDevotionalCard(Map<String, dynamic> devo) {
+    return Card(
+      elevation: 8,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Theme.of(context).primaryColor,
+              Theme.of(context).primaryColor.withValues(alpha: 0.8),
+            ],
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'Today\'s Devotional',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () {
+                      final title = devo['title'] ?? 'Today\'s Devotional';
+                      final verse = devo['verse_reference'] ?? '';
+                      final text = devo['devotional_text'] ?? '';
+                      final prayer = devo['prayer'] ?? '';
+                      final content = '''
+$title
+$verse
+
+$text
+
+🙏 $prayer
+
+Shared from Alkitab 2.0''';
+                      SharePlus.instance.share(ShareParams(text: content));
+                    },
+                    icon: const Icon(Icons.share, color: Colors.white),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                devo['title'] ?? 'Untitled',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (devo['verse_reference'] != null)
+                Text(
+                  devo['verse_reference'],
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.white70,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              const SizedBox(height: 12),
+              Text(
+                (devo['devotional_text'] ?? '').length > 120
+                    ? '${(devo['devotional_text'] ?? '').substring(0, 120)}...'
+                    : devo['devotional_text'] ?? '',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.white,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton(
+                  onPressed: () => _showDevotionalDetails(devo),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Theme.of(context).primaryColor,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  ),
+                  child: const Text('Read More'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDevotionalCard(Map<String, dynamic> dev) {
+    return Card(
+      elevation: 3,
+      margin: const EdgeInsets.only(bottom: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => _showDevotionalDetails(dev),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      dev['title'] ?? 'Untitled',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                ],
+              ),
+              if (dev['verse_reference'] != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  dev['verse_reference'],
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).primaryColor,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+              if (dev['devotional_text'] != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  (dev['devotional_text']).length > 80
+                      ? '${(dev['devotional_text']).substring(0, 80)}...'
+                      : dev['devotional_text'],
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey,
+                    height: 1.3,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 

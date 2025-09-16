@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:alkitab_2_0/models/bible_model.dart';
 import 'package:alkitab_2_0/constants/bible_data.dart';
 import 'package:alkitab_2_0/services/bible_service.dart';
@@ -181,6 +184,12 @@ class VerseBookmarkStore extends StateNotifier<Set<String>> {
 // Current Bible translation provider
 final currentTranslationProvider = StateProvider<String>((ref) => 'indo_tb');
 
+// Audio settings providers
+final audioVoiceProvider = StateProvider<String>((ref) => 'female');
+final audioSpeedProvider = StateProvider<double>((ref) => 0.5);
+final audioPitchProvider = StateProvider<double>((ref) => 1.0);
+final audioVolumeProvider = StateProvider<double>((ref) => 1.0);
+
 class BibleReaderScreen extends ConsumerStatefulWidget {
   final String? bookId;
   final int chapterId;
@@ -209,6 +218,12 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
   double fontSize = 16.0;
   final List<ScrollController> _scrollControllers = [];
   String currentTranslation = 'indo_tb';
+  String selectedVoice = 'female';
+  double speechRate = 0.5;
+  double speechPitch = 1.0;
+  double speechVolume = 1.0;
+  List<String> availableVoices = [];
+  Map<String, dynamic>? bibleMetadata;
 
   @override
   void initState() {
@@ -246,9 +261,9 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
 
   Future<void> setupTts() async {
     await flutterTts.setLanguage('id-ID'); // Indonesian language
-    await flutterTts.setSpeechRate(0.5);
-    await flutterTts.setVolume(1.0);
-    await flutterTts.setPitch(1.0);
+    await _loadAudioSettings();
+    await _applyAudioSettings();
+    await _getAvailableVoices();
 
     flutterTts.setCompletionHandler(() {
       if (currentVerseIndex < verses.length - 1) {
@@ -261,6 +276,44 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
         });
       }
     });
+  }
+
+  Future<void> _getAvailableVoices() async {
+    try {
+      final voices = await flutterTts.getVoices;
+      if (voices is List) {
+        availableVoices = voices
+            .map((voice) => voice['name']?.toString() ?? voice.toString())
+            .toList();
+      }
+    } catch (e) {
+      debugPrint('Error getting voices: $e');
+      availableVoices = ['Default'];
+    }
+  }
+
+  Future<void> _loadAudioSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      selectedVoice = prefs.getString('audio_voice') ?? 'female';
+      speechRate = prefs.getDouble('speech_rate') ?? 0.5;
+      speechPitch = prefs.getDouble('speech_pitch') ?? 1.0;
+      speechVolume = prefs.getDouble('speech_volume') ?? 1.0;
+    });
+  }
+
+  Future<void> _saveAudioSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('audio_voice', selectedVoice);
+    await prefs.setDouble('speech_rate', speechRate);
+    await prefs.setDouble('speech_pitch', speechPitch);
+    await prefs.setDouble('speech_volume', speechVolume);
+  }
+
+  Future<void> _applyAudioSettings() async {
+    await flutterTts.setSpeechRate(speechRate);
+    await flutterTts.setVolume(speechVolume);
+    await flutterTts.setPitch(speechPitch);
   }
 
   Future<void> _loadFontSize() async {
@@ -295,6 +348,9 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
         currentBookId,
         currentChapterId,
       );
+
+      // Load metadata for the current translation
+      bibleMetadata = await bibleService.getCurrentTranslationMetadata();
 
       // Create scroll controllers for each translation
       _scrollControllers.clear();
@@ -336,7 +392,11 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
   }
 
   void _navigateToChapter(String bookId, int chapterId) {
-    context.go('/bible-reader?bookId=$bookId&chapterId=$chapterId');
+    setState(() {
+      currentBookId = bookId;
+      currentChapterId = chapterId;
+    });
+    loadChapterContent();
   }
 
   Future<void> _speakVerse(BibleVerse verse) async {
@@ -504,7 +564,9 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                     Icons.copy,
                     'Salin',
                     () {
-                      // Implement copy functionality
+                      final bookName = getBookNameById(currentBookId);
+                      final verseText = '${verse.text} - $bookName $currentChapterId:${verse.verseId}';
+                      Clipboard.setData(ClipboardData(text: verseText));
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                             content: Text('Ayat tersalin ke clipboard')),
@@ -517,7 +579,9 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                     Icons.share,
                     'Bagikan',
                     () {
-                      // Implement share functionality
+                      final bookName = getBookNameById(currentBookId);
+                      final verseText = '${verse.text}\n\n- $bookName $currentChapterId:${verse.verseId}\n\nDari Alkitab 2.0';
+                      Share.share(verseText);
                       Navigator.pop(context);
                     },
                   ),
@@ -557,82 +621,254 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
     loadChapterContent();
   }
 
-  Widget _buildVerseItem(BibleVerse verse) {
-    final verseKey = '${currentBookId}_${currentChapterId}_${verse.verseId}';
-    final highlightColor = ref.watch(highlightStoreProvider)[verseKey];
-    final isBookmarked =
-        ref.watch(verseBookmarkProvider.notifier).isVerseBookmarked(verseKey);
+  Widget _buildTraditionalReader() {
+    if (verses.isEmpty) return const Center(child: Text('Tidak ada ayat yang ditemukan'));
 
-    Color? backgroundColor;
-    if (highlightColor != null) {
-      final color =
-          Color(int.parse(highlightColor.substring(1), radix: 16) | 0xFF000000);
-      backgroundColor = color.withOpacity(0.3);
-    }
+    final bookData = bibleBooks.firstWhere(
+      (book) => book['id'] == currentBookId,
+      orElse: () => bibleBooks.first,
+    );
+    final bookName = bookData['name'] as String;
 
-    return GestureDetector(
-      onLongPress: () => _showVerseActions(verse),
-      onTap: () {
-        if (isPlaying) {
-          flutterTts.stop();
-          setState(() {
-            isPlaying = false;
-            currentVerseIndex = verses.indexOf(verse);
-          });
-        } else {
-          setState(() {
-            currentVerseIndex = verses.indexOf(verse);
-          });
-        }
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8.0),
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          border: Border(
-            bottom: BorderSide(
-              color: Colors.grey.shade200,
-              width: 1.0,
-            ),
-          ),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDark ? Colors.grey[900] : const Color(0xFFFAF9F6);
+    final secondaryColor = isDark ? Colors.grey[850] : const Color(0xFFF5F5DC);
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            backgroundColor ?? Colors.white,
+            secondaryColor ?? Colors.grey[100]!,
+          ],
         ),
-        child: Row(
+      ),
+      child: SingleChildScrollView(
+        controller: _scrollControllers.isNotEmpty ? _scrollControllers[0] : null,
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(
-              width: 30,
-              child: Text(
-                '${verse.verseId}',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: fontSize - 2,
-                  color: Colors.grey.shade600,
+            // Header
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(32.0, 24.0, 32.0, 16.0),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.grey[850] : const Color(0xFFF8F6F0),
+                border: Border(
+                  bottom: BorderSide(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.1)
+                        : Colors.brown.withValues(alpha: 0.2),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    bookName,
+                    style: TextStyle(
+                      fontFamily: 'Georgia',
+                      fontSize: fontSize + 8,
+                      fontWeight: FontWeight.bold,
+                      color: isDark
+                          ? Colors.orange[300]
+                          : const Color(0xFF8B4513),
+                      letterSpacing: 1.2,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Pasal $currentChapterId',
+                    style: TextStyle(
+                      fontFamily: 'Georgia',
+                      fontSize: fontSize + 2,
+                      fontWeight: FontWeight.w500,
+                      color: isDark
+                          ? Colors.orange[200]
+                          : const Color(0xFF8B4513).withValues(alpha: 0.8),
+                      letterSpacing: 0.8,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+
+            // Content
+            Container(
+              padding: const EdgeInsets.fromLTRB(32.0, 24.0, 32.0, 24.0),
+              child: RichText(
+                textAlign: TextAlign.justify,
+                text: TextSpan(
+                  style: TextStyle(
+                    fontFamily: 'Georgia',
+                    fontSize: fontSize,
+                    height: 1.8,
+                    color: isDark ? Colors.white70 : const Color(0xFF2F2F2F),
+                    letterSpacing: 0.3,
+                  ),
+                  children: verses.map<TextSpan>((verse) {
+                    final verseKey = '${currentBookId}_${currentChapterId}_${verse.verseId}';
+                    final highlightColor = ref.watch(highlightStoreProvider)[verseKey];
+                    final isBookmarked = ref.watch(verseBookmarkProvider.notifier).isVerseBookmarked(verseKey);
+
+                    Color? backgroundColor;
+                    if (highlightColor != null) {
+                      final color = Color(int.parse(highlightColor.substring(1), radix: 16) | 0xFF000000);
+                      backgroundColor = color.withValues(alpha: 0.3);
+                    }
+
+                    return TextSpan(
+                      children: [
+                        TextSpan(
+                          text: '${verse.verseId}',
+                          style: TextStyle(
+                            fontFamily: 'Georgia',
+                            fontSize: fontSize - 3,
+                            fontWeight: FontWeight.bold,
+                            color: isDark
+                                ? Colors.orange[300]
+                                : const Color(0xFF8B4513),
+                            height: 1.2,
+                          ),
+                          recognizer: TapGestureRecognizer()
+                            ..onTap = () => _showVerseActions(verse),
+                        ),
+                        WidgetSpan(
+                          child: GestureDetector(
+                            onTap: () {
+                              if (isPlaying) {
+                                flutterTts.stop();
+                                setState(() {
+                                  isPlaying = false;
+                                  currentVerseIndex = verses.indexOf(verse);
+                                });
+                              } else {
+                                setState(() {
+                                  currentVerseIndex = verses.indexOf(verse);
+                                });
+                              }
+                            },
+                            onLongPress: () => _showVerseActions(verse),
+                            child: Text(
+                              ' ${verse.text} ',
+                              style: TextStyle(
+                                fontFamily: 'Georgia',
+                                fontSize: fontSize,
+                                height: 1.8,
+                                backgroundColor: backgroundColor,
+                                decoration: isBookmarked ? TextDecoration.underline : null,
+                                decorationColor: isDark
+                                    ? Colors.orange[300]
+                                    : const Color(0xFF8B4513),
+                                decorationThickness: 2.0,
+                                color: isDark ? Colors.white70 : const Color(0xFF2F2F2F),
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  }).toList(),
                 ),
               ),
             ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          verse.text,
-                          style: TextStyle(
-                            fontSize: fontSize,
-                            height: 1.5,
-                          ),
-                        ),
-                      ),
-                      if (isBookmarked)
-                        Icon(
-                          Icons.bookmark,
-                          size: 16,
-                          color: Theme.of(context).primaryColor,
-                        ),
-                    ],
+
+            // Footer
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(32.0, 16.0, 32.0, 24.0),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.grey[850] : const Color(0xFFF8F6F0),
+                border: Border(
+                  top: BorderSide(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.1)
+                        : Colors.brown.withValues(alpha: 0.2),
+                    width: 1,
                   ),
+                ),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    '- $bookName $currentChapterId -',
+                    style: TextStyle(
+                      fontFamily: 'Georgia',
+                      fontSize: fontSize - 2,
+                      fontWeight: FontWeight.w500,
+                      color: isDark
+                          ? Colors.orange[200]
+                          : const Color(0xFF8B4513).withValues(alpha: 0.7),
+                      letterSpacing: 1.0,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  if (bibleMetadata != null) ...[
+                    Text(
+                      bibleMetadata!['name'] ?? 'Alkitab',
+                      style: TextStyle(
+                        fontFamily: 'Georgia',
+                        fontSize: fontSize - 4,
+                        fontStyle: FontStyle.italic,
+                        color: isDark
+                            ? Colors.white54
+                            : const Color(0xFF8B4513).withValues(alpha: 0.6),
+                        letterSpacing: 0.5,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    if (bibleMetadata!['publisher'] != null && bibleMetadata!['publisher'].toString().isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        bibleMetadata!['publisher'],
+                        style: TextStyle(
+                          fontFamily: 'Georgia',
+                          fontSize: fontSize - 5,
+                          color: isDark
+                              ? Colors.white38
+                              : const Color(0xFF8B4513).withValues(alpha: 0.5),
+                          letterSpacing: 0.3,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                    if (bibleMetadata!['year'] != null && bibleMetadata!['year'].toString().isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        bibleMetadata!['year'],
+                        style: TextStyle(
+                          fontFamily: 'Georgia',
+                          fontSize: fontSize - 5,
+                          color: isDark
+                              ? Colors.white38
+                              : const Color(0xFF8B4513).withValues(alpha: 0.5),
+                          letterSpacing: 0.3,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ] else
+                    Text(
+                      'Alkitab dalam Bahasa Malaysia',
+                      style: TextStyle(
+                        fontFamily: 'Georgia',
+                        fontSize: fontSize - 4,
+                        fontStyle: FontStyle.italic,
+                        color: isDark
+                            ? Colors.white54
+                            : const Color(0xFF8B4513).withValues(alpha: 0.6),
+                        letterSpacing: 0.5,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                 ],
               ),
             ),
@@ -678,7 +914,7 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                     .appBarTheme
                     .titleTextStyle
                     ?.color
-                    ?.withOpacity(0.8),
+                    ?.withValues(alpha: 0.8),
               ),
             ),
           ],
@@ -692,6 +928,14 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                   .read(chapterBookmarkProvider.notifier)
                   .toggleChapterBookmark(chapterKey);
             },
+          ),
+          IconButton(
+            icon: Icon(
+              isPlaying ? Icons.pause : Icons.play_arrow,
+              color: isPlaying ? Colors.green : null,
+            ),
+            onPressed: _toggleReading,
+            tooltip: isPlaying ? 'Hentikan Pembacaan' : 'Mulai Pembacaan',
           ),
           PopupMenuButton(
             itemBuilder: (context) => [
@@ -727,6 +971,14 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                 ),
               ),
               PopupMenuItem(
+                child: const Text('Pengaturan Audio'),
+                onTap: () {
+                  Future.delayed(const Duration(milliseconds: 10), () {
+                    _showAudioSettingsDialog();
+                  });
+                },
+              ),
+              PopupMenuItem(
                 child: const Text('Pergi ke Ayat'),
                 onTap: () {
                   // Delay to allow menu to close
@@ -749,7 +1001,7 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
               color: Theme.of(context).cardColor,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 4,
                   offset: const Offset(0, 2),
                 ),
@@ -811,20 +1063,48 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
           Expanded(
             child: isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : verses.isEmpty
-                    ? const Center(child: Text('Tidak ada ayat yang ditemukan'))
-                    : ListView.builder(
-                        controller: _scrollControllers.isNotEmpty
-                            ? _scrollControllers[0]
-                            : null,
-                        padding: const EdgeInsets.all(16.0),
-                        itemCount: verses.length,
-                        itemBuilder: (context, index) {
-                          return _buildVerseItem(verses[index]);
-                        },
-                      ),
+                : _buildTraditionalReader(),
           ),
         ],
+      ),
+      bottomNavigationBar: Container(
+        height: 60,
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.1),
+              blurRadius: 4,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () => context.go('/home'),
+                icon: const Icon(Icons.home, size: 18),
+                label: const Text('Utama'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () => context.go('/bible'),
+                icon: const Icon(Icons.book, size: 18),
+                label: const Text('Alkitab'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -946,6 +1226,176 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
               child: const Text('Pergi'),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  void _showAudioSettingsDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        double tempSpeechRate = speechRate;
+        double tempSpeechPitch = speechPitch;
+        double tempSpeechVolume = speechVolume;
+        String tempSelectedVoice = selectedVoice;
+
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Pengaturan Audio'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Voice Selection
+                    const Text('Pilih Suara:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: RadioListTile<String>(
+                            title: const Text('Wanita'),
+                            value: 'female',
+                            groupValue: tempSelectedVoice,
+                            onChanged: (value) {
+                              setState(() {
+                                tempSelectedVoice = value!;
+                              });
+                            },
+                          ),
+                        ),
+                        Expanded(
+                          child: RadioListTile<String>(
+                            title: const Text('Pria'),
+                            value: 'male',
+                            groupValue: tempSelectedVoice,
+                            onChanged: (value) {
+                              setState(() {
+                                tempSelectedVoice = value!;
+                              });
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Speech Rate
+                    const Text('Kecepatan Baca:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Text('Lambat'),
+                        Expanded(
+                          child: Slider(
+                            value: tempSpeechRate,
+                            min: 0.1,
+                            max: 1.0,
+                            divisions: 9,
+                            label: '${(tempSpeechRate * 100).round()}%',
+                            onChanged: (value) {
+                              setState(() {
+                                tempSpeechRate = value;
+                              });
+                            },
+                          ),
+                        ),
+                        const Text('Cepat'),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Speech Pitch
+                    const Text('Nada Suara:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Text('Rendah'),
+                        Expanded(
+                          child: Slider(
+                            value: tempSpeechPitch,
+                            min: 0.5,
+                            max: 2.0,
+                            divisions: 15,
+                            label: tempSpeechPitch.toStringAsFixed(1),
+                            onChanged: (value) {
+                              setState(() {
+                                tempSpeechPitch = value;
+                              });
+                            },
+                          ),
+                        ),
+                        const Text('Tinggi'),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Speech Volume
+                    const Text('Volume:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Text('Kecil'),
+                        Expanded(
+                          child: Slider(
+                            value: tempSpeechVolume,
+                            min: 0.1,
+                            max: 1.0,
+                            divisions: 9,
+                            label: '${(tempSpeechVolume * 100).round()}%',
+                            onChanged: (value) {
+                              setState(() {
+                                tempSpeechVolume = value;
+                              });
+                            },
+                          ),
+                        ),
+                        const Text('Besar'),
+                      ],
+                    ),
+
+                    // Test Audio Button
+                    const SizedBox(height: 16),
+                    Center(
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          await flutterTts.setSpeechRate(tempSpeechRate);
+                          await flutterTts.setVolume(tempSpeechVolume);
+                          await flutterTts.setPitch(tempSpeechPitch);
+                          await flutterTts.speak('Ini adalah contoh suara pembacaan Alkitab');
+                        },
+                        icon: const Icon(Icons.play_arrow),
+                        label: const Text('Test Suara'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Batal'),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    final navigator = Navigator.of(context);
+                    setState(() {
+                      selectedVoice = tempSelectedVoice;
+                      speechRate = tempSpeechRate;
+                      speechPitch = tempSpeechPitch;
+                      speechVolume = tempSpeechVolume;
+                    });
+                    await _saveAudioSettings();
+                    await _applyAudioSettings();
+                    navigator.pop();
+                  },
+                  child: const Text('Simpan'),
+                ),
+              ],
+            );
+          },
         );
       },
     );

@@ -155,6 +155,17 @@ class BibleService {
     }
   }
 
+  // Get metadata for the current translation
+  Future<Map<String, dynamic>?> getCurrentTranslationMetadata() async {
+    try {
+      final bibleData = await _loadBibleFromAssets(_currentTranslation);
+      return bibleData['metadata'];
+    } catch (e) {
+      debugPrint('Error loading metadata: $e');
+      return null;
+    }
+  }
+
   // Convert book ID to book number
   int _getBookNumber(String bookId) {
     final book = bibleBooks.firstWhere(

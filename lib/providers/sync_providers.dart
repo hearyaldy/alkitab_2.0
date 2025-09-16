@@ -7,6 +7,9 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../services/connectivity_service.dart';
 import '../services/sync_queue_processor.dart';
 
+// Re-export for convenience
+export '../services/sync_queue_processor.dart' show SyncOperationType;
+
 // Connectivity Service Provider
 final connectivityServiceProvider = Provider<ConnectivityService>((ref) {
   return ConnectivityService();

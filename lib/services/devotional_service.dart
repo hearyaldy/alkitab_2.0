@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/devotional_model.dart';
+import 'mock_data_service.dart';
 
 class DevotionalService {
   static final DevotionalService _instance = DevotionalService._internal();
@@ -55,14 +56,24 @@ class DevotionalService {
         }
       }
 
-      _cachedDevotionals = devotionals;
-      _lastLoaded = DateTime.now();
-
-      return devotionals;
+      if (devotionals.isNotEmpty) {
+        _cachedDevotionals = devotionals;
+        _lastLoaded = DateTime.now();
+        return devotionals;
+      }
     } catch (e) {
-      debugPrint('Failed to load devotionals: $e');
-      return [];
+      debugPrint('Failed to load devotionals from Supabase: $e');
     }
+
+    // Fallback to mock data if Supabase fails or returns empty
+    debugPrint('Using mock devotional data as fallback');
+    await MockDataService.initialize();
+    final mockDevotionals = MockDataService.getDevotionals();
+
+    _cachedDevotionals = mockDevotionals;
+    _lastLoaded = DateTime.now();
+
+    return mockDevotionals;
   }
 
   // Get a specific devotional by ID
@@ -86,7 +97,11 @@ class DevotionalService {
   // Get today's devotional
   Future<DevotionalModel?> getTodayDevotional() async {
     final devotionals = await getAllDevotionals();
-    if (devotionals.isEmpty) return null;
+    if (devotionals.isEmpty) {
+      // Fallback to mock data if needed
+      await MockDataService.initialize();
+      return MockDataService.getTodayDevotional();
+    }
 
     final now = DateTime.now();
     final dayOfYear = now.difference(DateTime(now.year, 1, 1)).inDays + 1;
