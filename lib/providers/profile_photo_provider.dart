@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 // Provider for managing profile photo state
 final profilePhotoProvider =
@@ -9,6 +10,9 @@ final profilePhotoProvider =
 });
 
 class ProfilePhotoNotifier extends StateNotifier<String?> {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
   ProfilePhotoNotifier() : super(null) {
     _initializeProfilePhoto();
   }
@@ -16,12 +20,23 @@ class ProfilePhotoNotifier extends StateNotifier<String?> {
   // Initialize profile photo from user metadata or shared preferences
   Future<void> _initializeProfilePhoto() async {
     try {
-      final user = Supabase.instance.client.auth.currentUser;
+      final user = _auth.currentUser;
       if (user != null) {
-        final photoUrl = user.userMetadata?['profile_photo_url'];
-        if (photoUrl != null) {
-          state = photoUrl;
+        // First try to get from Firebase Auth photoURL
+        if (user.photoURL != null) {
+          state = user.photoURL;
           return;
+        }
+
+        // Then try to get from Firestore
+        final userDoc =
+            await _firestore.collection('users').doc(user.uid).get();
+        if (userDoc.exists) {
+          final photoUrl = userDoc.data()?['profile_photo_url'];
+          if (photoUrl != null) {
+            state = photoUrl;
+            return;
+          }
         }
       }
 
@@ -46,11 +61,16 @@ class ProfilePhotoNotifier extends StateNotifier<String?> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('profile_photo_url', photoUrl);
 
-      // Optional: Update Supabase user metadata
-      final user = Supabase.instance.client.auth.currentUser;
+      // Update Firebase Auth photoURL
+      final user = _auth.currentUser;
       if (user != null) {
-        await Supabase.instance.client.auth
-            .updateUser(UserAttributes(data: {'profile_photo_url': photoUrl}));
+        await user.updatePhotoURL(photoUrl);
+
+        // Also store in Firestore
+        await _firestore.collection('users').doc(user.uid).set({
+          'profile_photo_url': photoUrl,
+          'updated_at': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
       }
     } catch (e) {
       print('Error updating profile photo: $e');
@@ -63,11 +83,16 @@ class ProfilePhotoNotifier extends StateNotifier<String?> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('profile_photo_url');
 
-    // Optional: Clear from Supabase user metadata
-    final user = Supabase.instance.client.auth.currentUser;
+    // Clear from Firebase
+    final user = _auth.currentUser;
     if (user != null) {
-      await Supabase.instance.client.auth
-          .updateUser(UserAttributes(data: {'profile_photo_url': null}));
+      await user.updatePhotoURL(null);
+
+      // Also clear from Firestore
+      await _firestore.collection('users').doc(user.uid).update({
+        'profile_photo_url': FieldValue.delete(),
+        'updated_at': FieldValue.serverTimestamp(),
+      });
     }
   }
 }

@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 
-import '../../providers/auth_provider.dart';
+import '../../providers/firebase_auth_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/bible_version_provider.dart';
+import '../../providers/sync_provider.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -681,19 +683,83 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
 
             const SizedBox(height: 20),
 
-            // Logout Section
+            // Account & Sync Section
             _buildSection(
               context,
-              'Akun',
+              'Akun & Sinkronisasi',
               Icons.person_outline,
-              Colors.red,
+              Colors.blue,
               [
-                _buildModernTile(
-                  context,
-                  'Keluar',
-                  'Keluar dari akun Anda',
-                  '',
-                  () => _showLogoutConfirmation(),
+                Consumer(
+                  builder: (context, ref, _) {
+                    final authState = ref.watch(authStateProvider);
+                    final syncState = ref.watch(syncStateProvider);
+
+                    return authState.when(
+                      data: (user) {
+                        if (user == null) {
+                          return Column(
+                            children: [
+                              _buildModernTile(
+                                context,
+                                'Masuk',
+                                'Masuk untuk menyinkronkan data',
+                                '',
+                                () => _showLoginDialog(context, ref),
+                              ),
+                            ],
+                          );
+                        }
+
+                        return Column(
+                          children: [
+                            _buildModernTile(
+                              context,
+                              'Email',
+                              (user as firebase_auth.User).email ?? '',
+                              '',
+                              null,
+                            ),
+                            _buildModernTile(
+                              context,
+                              'Sinkronisasi',
+                              syncState.lastSynced != null
+                                  ? 'Terakhir: ${_formatDateTime(syncState.lastSynced!)}'
+                                  : 'Belum pernah disinkronkan',
+                              '',
+                              syncState.isSyncing ? null : () => _sync(ref),
+                            ),
+                            if (syncState.error != null)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 16),
+                                child: Text(
+                                  'Error: ${syncState.error}',
+                                  style: TextStyle(color: Colors.red),
+                                ),
+                              ),
+                            _buildModernTile(
+                              context,
+                              'Keluar',
+                              'Keluar dari akun Anda',
+                              '',
+                              () => _showLogoutConfirmation(ref),
+                            ),
+                          ],
+                        );
+                      },
+                      loading: () => const Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                      error: (_, __) => _buildModernTile(
+                        context,
+                        'Error',
+                        'Gagal memuat status autentikasi',
+                        '',
+                        null,
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
@@ -707,24 +773,66 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   // Version selection dialog is implemented above
 
-  void _showLogoutConfirmation() {
+  String _formatDateTime(DateTime dateTime) {
+    return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _sync(WidgetRef ref) async {
+    await ref.read(syncStateProvider.notifier).syncAll();
+  }
+
+  void _showLoginDialog(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
+        title: const Text('Masuk'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                final success =
+                    await ref.read(userProvider.notifier).signInWithGoogle();
+                if (!success) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Gagal masuk dengan Google')),
+                  );
+                }
+              },
+              child: const Text('Masuk dengan Google'),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                context.push('/login'); // Implement email login screen
+              },
+              child: const Text('Masuk dengan Email'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showLogoutConfirmation(WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Keluar'),
+        content: const Text('Anda yakin ingin keluar?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: const Text('Batal'),
           ),
           TextButton(
             onPressed: () async {
-              await ref.read(authProvider.notifier).signOut();
+              await ref.read(userProvider.notifier).signOut();
               Navigator.pop(context);
-              context.go('/login');
             },
-            child: const Text('Logout'),
+            child: const Text('Keluar'),
           ),
         ],
       ),

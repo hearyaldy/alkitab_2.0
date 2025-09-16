@@ -5,7 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:alkitab_2_0/models/bible_model.dart';
 import 'package:alkitab_2_0/constants/bible_data.dart';
@@ -79,26 +80,32 @@ class ChapterBookmarkStore extends StateNotifier<Set<String>> {
 
   void toggleChapterBookmark(String chapterKey) async {
     final newState = Set<String>.from(state);
-    final user = Supabase.instance.client.auth.currentUser;
+    final user = FirebaseAuth.instance.currentUser;
     final parts = chapterKey.split('_');
 
     if (newState.contains(chapterKey)) {
       newState.remove(chapterKey);
       if (user != null) {
-        await Supabase.instance.client
-            .from('user_bookmarks')
-            .delete()
-            .eq('user_id', user.id)
-            .eq('book_id', parts[0])
-            .eq('chapter_id', int.parse(parts[1]))
-            .isFilter('verse_id', null)
-            .eq('type', 'bible');
+        // Delete bookmark from Firestore
+        final query = await FirebaseFirestore.instance
+            .collection('user_bookmarks')
+            .where('user_id', isEqualTo: user.uid)
+            .where('book_id', isEqualTo: parts[0])
+            .where('chapter_id', isEqualTo: int.parse(parts[1]))
+            .where('verse_id', isNull: true)
+            .where('type', isEqualTo: 'bible')
+            .get();
+
+        for (var doc in query.docs) {
+          await doc.reference.delete();
+        }
       }
     } else {
       newState.add(chapterKey);
       if (user != null) {
-        await Supabase.instance.client.from('user_bookmarks').insert({
-          'user_id': user.id,
+        // Add bookmark to Firestore
+        await FirebaseFirestore.instance.collection('user_bookmarks').add({
+          'user_id': user.uid,
           'type': 'bible',
           'bookmark_type': 'bible_chapter',
           'book_id': parts[0],
@@ -106,6 +113,7 @@ class ChapterBookmarkStore extends StateNotifier<Set<String>> {
           'verse_id': null,
           'verse_reference': '${parts[0]} ${parts[1]}',
           'title': 'Bible - ${parts[0]} ${parts[1]}',
+          'created_at': FieldValue.serverTimestamp(),
         });
       }
     }
@@ -141,26 +149,32 @@ class VerseBookmarkStore extends StateNotifier<Set<String>> {
 
   void toggleVerseBookmark(String verseKey) async {
     final newState = Set<String>.from(state);
-    final user = Supabase.instance.client.auth.currentUser;
+    final user = FirebaseAuth.instance.currentUser;
     final parts = verseKey.split('_');
 
     if (newState.contains(verseKey)) {
       newState.remove(verseKey);
       if (user != null) {
-        await Supabase.instance.client
-            .from('user_bookmarks')
-            .delete()
-            .eq('user_id', user.id)
-            .eq('book_id', parts[0])
-            .eq('chapter_id', int.parse(parts[1]))
-            .eq('verse_id', int.parse(parts[2]))
-            .eq('type', 'bible');
+        // Delete bookmark from Firestore
+        final query = await FirebaseFirestore.instance
+            .collection('user_bookmarks')
+            .where('user_id', isEqualTo: user.uid)
+            .where('book_id', isEqualTo: parts[0])
+            .where('chapter_id', isEqualTo: int.parse(parts[1]))
+            .where('verse_id', isEqualTo: int.parse(parts[2]))
+            .where('type', isEqualTo: 'bible')
+            .get();
+
+        for (var doc in query.docs) {
+          await doc.reference.delete();
+        }
       }
     } else {
       newState.add(verseKey);
       if (user != null) {
-        await Supabase.instance.client.from('user_bookmarks').insert({
-          'user_id': user.id,
+        // Add bookmark to Firestore
+        await FirebaseFirestore.instance.collection('user_bookmarks').add({
+          'user_id': user.uid,
           'type': 'bible',
           'bookmark_type': 'bible_verse',
           'book_id': parts[0],
@@ -168,6 +182,7 @@ class VerseBookmarkStore extends StateNotifier<Set<String>> {
           'verse_id': int.parse(parts[2]),
           'verse_reference': '${parts[0]} ${parts[1]}:${parts[2]}',
           'title': 'Bible - ${parts[0]} ${parts[1]}:${parts[2]}',
+          'created_at': FieldValue.serverTimestamp(),
         });
       }
     }
@@ -1006,8 +1021,9 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
   }
 
   Widget _buildTraditionalReader() {
-    if (verses.isEmpty)
+    if (verses.isEmpty) {
       return const Center(child: Text('Tidak ada ayat yang ditemukan'));
+    }
 
     final bookData = bibleBooks.firstWhere(
       (book) => book['id'] == currentBookId,

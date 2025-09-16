@@ -1,30 +1,52 @@
-// lib/widgets/bible_bookmarks_list.dart
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'bible_verse_detail_sheet.dart';
 
-class BibleBookmarksList extends StatelessWidget {
-  final Future<List<Map<String, dynamic>>> bookmarkFuture;
+class BibleBookmarksList extends StatefulWidget {
   final VoidCallback onRefresh;
 
   const BibleBookmarksList({
     super.key,
-    required this.bookmarkFuture,
     required this.onRefresh,
   });
 
+  @override
+  State<BibleBookmarksList> createState() => _BibleBookmarksListState();
+}
+
+class _BibleBookmarksListState extends State<BibleBookmarksList> {
+  late Stream<QuerySnapshot> _bookmarksStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _initBookmarksStream();
+  }
+
+  void _initBookmarksStream() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      _bookmarksStream = FirebaseFirestore.instance
+          .collection('user_bookmarks')
+          .where('user_id', isEqualTo: user.uid)
+          .where('type', isEqualTo: 'bible')
+          .orderBy('created_at', descending: true)
+          .snapshots();
+    }
+  }
+
   Future<void> _deleteBookmark(BuildContext context, String bookmarkId) async {
     try {
-      await Supabase.instance.client
-          .from('user_bookmarks')
-          .delete()
-          .eq('id', bookmarkId);
+      await FirebaseFirestore.instance
+          .collection('user_bookmarks')
+          .doc(bookmarkId)
+          .delete();
 
-      onRefresh();
+      widget.onRefresh();
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -64,8 +86,15 @@ class BibleBookmarksList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: bookmarkFuture,
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return const Center(
+        child: Text('Please sign in to view bookmarks'),
+      );
+    }
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: _bookmarksStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -81,7 +110,7 @@ class BibleBookmarksList extends StatelessWidget {
                 Text('Error: ${snapshot.error}'),
                 const SizedBox(height: 16),
                 ElevatedButton(
-                  onPressed: onRefresh,
+                  onPressed: widget.onRefresh,
                   child: const Text('Try Again'),
                 ),
               ],
@@ -89,12 +118,8 @@ class BibleBookmarksList extends StatelessWidget {
           );
         }
 
-        final bookmarks = snapshot.data ?? [];
-        final bibleBookmarks = bookmarks
-            .where((b) => b['type'] == 'bible' || b['bookmark_type'] == 'bible')
-            .toList();
-
-        if (bibleBookmarks.isEmpty) {
+        final bookmarks = snapshot.data?.docs ?? [];
+        if (bookmarks.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -128,9 +153,10 @@ class BibleBookmarksList extends StatelessWidget {
 
         return ListView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: bibleBookmarks.length,
+          itemCount: bookmarks.length,
           itemBuilder: (context, index) {
-            final bookmark = bibleBookmarks[index];
+            final bookmark = bookmarks[index].data() as Map<String, dynamic>;
+            final bookmarkId = bookmarks[index].id;
 
             // Get reference from either reference or verse_reference field
             final reference = bookmark['reference'] ??
@@ -140,7 +166,7 @@ class BibleBookmarksList extends StatelessWidget {
             // Safe date parsing
             String formattedDate;
             try {
-              final date = DateTime.parse(bookmark['created_at'] ?? '');
+              final date = (bookmark['created_at'] as Timestamp).toDate();
               formattedDate = '${date.day}/${date.month}/${date.year}';
             } catch (e) {
               formattedDate = 'Date unknown';
@@ -220,8 +246,8 @@ class BibleBookmarksList extends StatelessWidget {
                           ),
                           IconButton(
                             icon: const Icon(Icons.delete, color: Colors.red),
-                            onPressed: () => _deleteBookmark(
-                                context, bookmark['id'].toString()),
+                            onPressed: () =>
+                                _deleteBookmark(context, bookmarkId),
                           ),
                         ],
                       ),

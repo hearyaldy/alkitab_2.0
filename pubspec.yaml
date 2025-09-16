@@ -25,8 +25,11 @@ dependencies:
   go_router: ^16.2.1
 
   # Backend and Authentication
-  supabase_flutter: ^2.8.4
-  
+  firebase_core: ^2.15.1
+  firebase_auth: ^4.9.0
+  cloud_firestore: ^4.9.1
+  firebase_storage: ^11.2.6
+  google_sign_in: ^6.1.5
   # Local Storage and Preferences
   hive: ^2.2.3
   hive_flutter: ^1.1.0

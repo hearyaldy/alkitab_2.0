@@ -1,60 +1,116 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../services/auth_service.dart';
+import '../services/firebase_service.dart';
+
+// Provider for FirebaseService instance
+final firebaseServiceProvider = Provider<FirebaseService>((ref) {
+  return FirebaseService();
+});
+
+// Stream provider for auth state changes
+final authStateProvider = StreamProvider<User?>((ref) {
+  return FirebaseAuth.instance.authStateChanges();
+});
+
+// Provider for current user
+final currentUserProvider = StateProvider<User?>((ref) {
+  return FirebaseAuth.instance.currentUser;
+});
 
 class AuthNotifier extends StateNotifier<User?> {
-  AuthNotifier() : super(Supabase.instance.client.auth.currentUser);
+  final FirebaseService _firebaseService;
 
-  // SIGN IN
-  Future<void> signIn(String email, String password) async {
-    final response = await AuthService.signIn(
-      email: email,
-      password: password,
-    );
-    state = response;
+  AuthNotifier(this._firebaseService)
+      : super(FirebaseAuth.instance.currentUser);
+
+  // SIGN IN with email
+  Future<bool> signInWithEmail(String email, String password) async {
+    try {
+      final credential =
+          await _firebaseService.signInWithEmailPassword(email, password);
+      if (credential != null) {
+        state = credential.user;
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('Error signing in: $e');
+      return false;
+    }
   }
 
-  // SIGN UP with username support
-  Future<void> signUp({
-    required String username,
-    required String email,
-    required String password,
-  }) async {
-    final response = await AuthService.signUp(
-      email: email,
-      password: password,
-      displayName: username,
-    );
+  // SIGN IN with Google
+  Future<bool> signInWithGoogle() async {
+    try {
+      final credential = await _firebaseService.signInWithGoogle();
+      if (credential != null) {
+        state = credential.user;
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('Error signing in with Google: $e');
+      return false;
+    }
+  }
 
-    state = response;
+  // SIGN UP
+  Future<bool> signUp(String email, String password, String displayName) async {
+    try {
+      final credential =
+          await _firebaseService.signUpWithEmailPassword(email, password);
+      if (credential != null) {
+        await credential.user?.updateDisplayName(displayName);
+        state = credential.user;
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('Error signing up: $e');
+      return false;
+    }
   }
 
   // RESET PASSWORD
-  Future<void> resetPassword(String email) async {
-    await AuthService.resetPassword(email);
+  Future<bool> resetPassword(String email) async {
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      return true;
+    } catch (e) {
+      print('Error resetting password: $e');
+      return false;
+    }
   }
 
   // SIGN OUT
   Future<void> signOut() async {
-    await AuthService.signOut();
+    await _firebaseService.signOut();
     state = null;
   }
 
   // UPDATE PROFILE
-  Future<void> updateProfile({
-    String? displayName,
-    String? email,
-  }) async {
-    await AuthService.updateProfile(
-      displayName: displayName,
-      email: email,
-    );
-
-    // Refresh current user state
-    state = Supabase.instance.client.auth.currentUser;
+  Future<bool> updateProfile({String? displayName, String? email}) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        if (displayName != null) {
+          await user.updateDisplayName(displayName);
+        }
+        if (email != null) {
+          await user.updateEmail(email);
+        }
+        state = FirebaseAuth.instance.currentUser;
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('Error updating profile: $e');
+      return false;
+    }
   }
 }
 
 final authProvider = StateNotifierProvider<AuthNotifier, User?>((ref) {
-  return AuthNotifier();
+  final firebaseService = ref.watch(firebaseServiceProvider);
+  return AuthNotifier(firebaseService);
 });

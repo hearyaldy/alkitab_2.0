@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "816180259014",
+    "project_id": "alkitab-2-0",
+    "storage_bucket": "alkitab-2-0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:816180259014:android:a09e850bf8f00af1c58fc7",
+        "android_client_info": {
+          "package_name": "com.haweeinc.alkitab"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBnv1IXpKdsNlrNCjc2sxDZSaeHak_mzYk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

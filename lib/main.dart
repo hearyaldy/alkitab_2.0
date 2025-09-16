@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'router.dart';
@@ -18,7 +18,10 @@ import 'utils/offline_manager.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🚨 TEMPORARY: Clear Hive data immediately during development
+  // Initialize Firebase
+  await Firebase.initializeApp();
+
+  // Initialize Hive
   await Hive.initFlutter();
 
   try {
@@ -39,19 +42,8 @@ Future<void> main() async {
       print('OfflineManager initialization failed: $e');
     }
 
-    // Skip connectivity services for now to debug
-    // final connectivityService = ConnectivityService();
-    // final syncService = SyncService();
-
     await dotenv.load();
     await initializeDateFormatting('ms', null);
-
-    // Initialize Supabase with mock/dummy credentials for compatibility
-    await Supabase.initialize(
-      url: 'https://dummy-url.supabase.co',
-      anonKey: 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ',
-    );
-    print('Supabase initialized with mock credentials for offline development.');
 
     // Initialize mock data service for offline development
     await MockDataService.initialize();

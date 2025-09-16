@@ -1,226 +1,138 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:hive_flutter/hive_flutter.dart';
-import 'supabase_service.dart';
-import 'local_storage_service.dart';
-import 'sync_service.dart';
-import '../config/constants.dart';
 
 class AuthService {
-  // Static instance of SyncService for offline sync capabilities
-  static final _syncService = SyncService();
+  static final FirebaseAuth _auth = FirebaseAuth.instance;
+  static final GoogleSignIn _googleSignIn = GoogleSignIn();
 
-  // Sign up with email and password
-  static Future<User?> signUp({
-    required String email,
-    required String password,
-    String? displayName,
-  }) async {
+  // Get current user
+  static User? get currentUser => _auth.currentUser;
+
+  // Get auth state changes
+  static Stream<User?> get authStateChanges => _auth.authStateChanges();
+
+  // Sign in with email and password
+  static Future<UserCredential?> signInWithEmailPassword(
+    String email,
+    String password,
+  ) async {
     try {
-      final response = await SupabaseService.auth.signUp(
+      final credential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
-        data: {
-          'display_name': displayName,
-        },
       );
-
-      if (response.user != null) {
-        // Save user to local storage
-        final userBox = await Hive.openBox(AppConstants.userBoxName);
-        await userBox.put('currentUser', response.user!.toJson());
-
-        // Save additional profile info
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('user_email', email);
-        if (displayName != null) {
-          await prefs.setString('user_display_name', displayName);
-        }
-
-        // Attempt to sync user data if online
-        await _syncService.performPeriodicSync();
-      }
-
-      return response.user;
+      await _saveUserData(credential.user);
+      return credential;
     } catch (e) {
-      debugPrint('Sign up error: $e');
-
-      // Store signup attempt for later sync if offline
-      await LocalStorageService.addToSyncQueue('signup', {
-        'email': email,
-        'display_name': displayName,
-      });
-
-      rethrow;
+      debugPrint('Sign in error: $e');
+      return null;
     }
   }
 
-  // Sign in with email and password
-  static Future<User?> signIn({
-    required String email,
-    required String password,
-  }) async {
+  // Sign in with Google
+  static Future<UserCredential?> signInWithGoogle() async {
     try {
-      final response = await SupabaseService.auth.signInWithPassword(
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) return null;
+
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      final userCredential = await _auth.signInWithCredential(credential);
+      await _saveUserData(userCredential.user);
+      return userCredential;
+    } catch (e) {
+      debugPrint('Google sign in error: $e');
+      return null;
+    }
+  }
+
+  // Sign up with email and password
+  static Future<UserCredential?> signUpWithEmailPassword(
+    String email,
+    String password,
+    String displayName,
+  ) async {
+    try {
+      final credential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      if (response.user != null) {
-        // Save user to local storage
-        final userBox = await Hive.openBox(AppConstants.userBoxName);
-        await userBox.put('currentUser', response.user!.toJson());
-
-        // Save to shared preferences for offline access
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('user_email', email);
-        await prefs.setBool('is_logged_in', true);
-
-        // Attempt to sync user data
-        await _syncService.performPeriodicSync();
-      }
-
-      return response.user;
+      await credential.user?.updateDisplayName(displayName);
+      await _saveUserData(credential.user);
+      return credential;
     } catch (e) {
-      debugPrint('Sign in error: $e');
-
-      // Store login attempt for potential offline retry
-      await LocalStorageService.addToSyncQueue('login', {
-        'email': email,
-      });
-
-      rethrow;
+      debugPrint('Sign up error: $e');
+      return null;
     }
   }
 
   // Sign out
   static Future<void> signOut() async {
     try {
-      await SupabaseService.auth.signOut();
-
-      // Clear user from local storage
-      final userBox = await Hive.openBox(AppConstants.userBoxName);
-      await userBox.delete('currentUser');
-
-      // Clear shared preferences
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('user_email');
-      await prefs.remove('is_logged_in');
-      await prefs.remove('user_display_name');
+      await _googleSignIn.signOut();
+      await _auth.signOut();
+      await _clearUserData();
     } catch (e) {
       debugPrint('Sign out error: $e');
-      rethrow;
     }
   }
 
   // Reset password
   static Future<void> resetPassword(String email) async {
     try {
-      await SupabaseService.auth.resetPasswordForEmail(email);
-
-      // Store reset attempt in case of offline scenario
-      await LocalStorageService.addToSyncQueue('password_reset', {
-        'email': email,
-      });
+      await _auth.sendPasswordResetEmail(email: email);
     } catch (e) {
-      debugPrint('Reset password error: $e');
+      debugPrint('Password reset error: $e');
       rethrow;
     }
   }
 
-  // Get current user from local storage (for offline mode)
-  static Future<Map<String, dynamic>?> getCurrentUserFromStorage() async {
-    final prefs = await SharedPreferences.getInstance();
-    final isLoggedIn = prefs.getBool('is_logged_in') ?? false;
-
-    if (!isLoggedIn) return null;
-
-    final userBox = await Hive.openBox(AppConstants.userBoxName);
-    return userBox.get('currentUser');
-  }
-
-  // Check if user is authenticated (either online or from local storage)
-  static Future<bool> isAuthenticated() async {
-    // Check Supabase authentication first
-    if (SupabaseService.isAuthenticated) return true;
-
-    // Check local storage
-    final user = await getCurrentUserFromStorage();
-    return user != null;
-  }
-
-  // Update user profile
+  // Update profile
   static Future<void> updateProfile({
     String? displayName,
     String? email,
   }) async {
     try {
-      final user = SupabaseService.currentUser;
-      if (user == null) throw Exception('No authenticated user');
-
-      // Prepare update data
-      final updateData = <String, dynamic>{};
-      if (displayName != null) updateData['display_name'] = displayName;
-      if (email != null) updateData['email'] = email;
-
-      // Update Supabase user
-      await SupabaseService.auth.updateUser(
-        UserAttributes(
-          email: email,
-          data: updateData,
-        ),
-      );
-
-      // Update local storage
-      final prefs = await SharedPreferences.getInstance();
-      if (displayName != null) {
-        await prefs.setString('user_display_name', displayName);
+      final user = _auth.currentUser;
+      if (user != null) {
+        if (displayName != null) {
+          await user.updateDisplayName(displayName);
+        }
+        if (email != null) {
+          await user.updateEmail(email);
+        }
+        await _saveUserData(user);
       }
-      if (email != null) {
-        await prefs.setString('user_email', email);
-      }
-
-      // Store profile update in sync queue for potential offline sync
-      await LocalStorageService.addToSyncQueue('profile_update', {
-        'display_name': displayName,
-        'email': email,
-      });
-
-      // Attempt to sync immediately
-      await _syncService.performPeriodicSync();
     } catch (e) {
-      debugPrint('Profile update error: $e');
+      debugPrint('Update profile error: $e');
       rethrow;
     }
   }
 
-  // Retry failed sync operations
-  static Future<void> retrySyncOperations() async {
-    try {
-      final syncQueue = await LocalStorageService.getSyncQueue();
+  // Save user data to local storage
+  static Future<void> _saveUserData(User? user) async {
+    if (user == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('user_email', user.email ?? '');
+    await prefs.setString('user_display_name', user.displayName ?? '');
+    await prefs.setString('user_id', user.uid);
+    await prefs.setBool('is_logged_in', true);
+  }
 
-      for (var item in syncQueue) {
-        switch (item['type']) {
-          case 'signup':
-            // Implement retry logic for signup
-            break;
-          case 'login':
-            // Implement retry logic for login
-            break;
-          case 'password_reset':
-            // Implement retry logic for password reset
-            break;
-          case 'profile_update':
-            // Implement retry logic for profile update
-            break;
-        }
-      }
-
-      // Clear sync queue after processing
-      await LocalStorageService.clearSyncQueueItems(syncQueue);
-    } catch (e) {
-      debugPrint('Sync retry error: $e');
-    }
+  // Clear user data from local storage
+  static Future<void> _clearUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('user_email');
+    await prefs.remove('user_display_name');
+    await prefs.remove('user_id');
+    await prefs.remove('is_logged_in');
   }
 }

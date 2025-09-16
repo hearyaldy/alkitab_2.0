@@ -3,34 +3,38 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/devotional_model.dart';
 import '../services/devotional_service.dart';
 import 'devotional_detail_sheet.dart';
 
-class DevotionalBookmarksList extends StatelessWidget {
-  final Future<List<Map<String, dynamic>>> bookmarkFuture;
+class DevotionalBookmarksList extends StatefulWidget {
   final List<DevotionalModel> devotionals;
   final DevotionalService devotionalService;
   final VoidCallback onRefresh;
 
   const DevotionalBookmarksList({
     super.key,
-    required this.bookmarkFuture,
     required this.devotionals,
     required this.devotionalService,
     required this.onRefresh,
   });
 
+  @override
+  State<DevotionalBookmarksList> createState() =>
+      _DevotionalBookmarksListState();
+}
+
+class _DevotionalBookmarksListState extends State<DevotionalBookmarksList> {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   Future<void> _deleteBookmark(BuildContext context, String bookmarkId) async {
     try {
-      await Supabase.instance.client
-          .from('user_bookmarks')
-          .delete()
-          .eq('id', bookmarkId);
+      await _firestore.collection('user_bookmarks').doc(bookmarkId).delete();
 
-      onRefresh();
+      widget.onRefresh();
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -45,6 +49,19 @@ class DevotionalBookmarksList extends StatelessWidget {
         );
       }
     }
+  }
+
+  Stream<QuerySnapshot> _getBookmarksStream() {
+    final user = _auth.currentUser;
+    if (user != null) {
+      return _firestore
+          .collection('user_bookmarks')
+          .where('user_id', isEqualTo: user.uid)
+          .where('type', isEqualTo: 'devotional')
+          .orderBy('created_at', descending: true)
+          .snapshots();
+    }
+    return const Stream.empty();
   }
 
   Future<void> _shareBookmark(BuildContext context,
