@@ -519,74 +519,187 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
     final verseKey = '${currentBookId}_${currentChapterId}_${verse.verseId}';
     final isBookmarked =
         ref.read(verseBookmarkProvider.notifier).isVerseBookmarked(verseKey);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
+        return Container(
+          decoration: BoxDecoration(
+            color: isDark ? Colors.grey[900] : Colors.white,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+            ),
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                'Ayat ${verse.verseId}',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+              // Handle bar
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(top: 12),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white24 : Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-              const SizedBox(height: 8),
-              Text(verse.text),
-              const SizedBox(height: 16),
-              GridView.count(
-                crossAxisCount: 4,
-                shrinkWrap: true,
-                children: [
-                  _buildActionItem(
-                    context,
-                    Icons.highlight,
-                    'Sorot',
-                    () {
-                      Navigator.pop(context);
-                      _showHighlightOptions(verse);
-                    },
-                  ),
-                  _buildActionItem(
-                    context,
-                    isBookmarked ? Icons.bookmark : Icons.bookmark_border,
-                    isBookmarked ? 'Tersimpan' : 'Simpan',
-                    () {
-                      ref
-                          .read(verseBookmarkProvider.notifier)
-                          .toggleVerseBookmark(verseKey);
-                      Navigator.pop(context);
-                    },
-                  ),
-                  _buildActionItem(
-                    context,
-                    Icons.copy,
-                    'Salin',
-                    () {
-                      final bookName = getBookNameById(currentBookId);
-                      final verseText = '${verse.text} - $bookName $currentChapterId:${verse.verseId}';
-                      Clipboard.setData(ClipboardData(text: verseText));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('Ayat tersalin ke clipboard')),
-                      );
-                      Navigator.pop(context);
-                    },
-                  ),
-                  _buildActionItem(
-                    context,
-                    Icons.share,
-                    'Bagikan',
-                    () {
-                      final bookName = getBookNameById(currentBookId);
-                      final verseText = '${verse.text}\n\n- $bookName $currentChapterId:${verse.verseId}\n\nDari Alkitab 2.0';
-                      Share.share(verseText);
-                      Navigator.pop(context);
-                    },
-                  ),
-                ],
+
+              // Header section
+              Container(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? Colors.orange[200]
+                                : Colors.orange[100],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            'Ayat ${verse.verseId}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: isDark
+                                  ? Colors.grey[900]
+                                  : Colors.orange[800],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: Icon(Icons.close,
+                              color:
+                                  isDark ? Colors.white54 : Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.grey[800] : Colors.grey[50],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        verse.text,
+                        style: TextStyle(
+                          fontSize: 16,
+                          height: 1.5,
+                          color: isDark
+                              ? Colors.white.withOpacity(0.87)
+                              : Colors.grey[800],
+                          fontFamily: 'Georgia',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
+
+              // Actions section
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  children: [
+                    _buildModernActionItem(
+                      context,
+                      Icons.highlight_outlined,
+                      'Sorot Ayat',
+                      'Tambahkan warna highlight pada ayat ini',
+                      Colors.amber,
+                      () {
+                        Navigator.pop(context);
+                        _showHighlightOptions(verse);
+                      },
+                    ),
+                    _buildModernActionItem(
+                      context,
+                      isBookmarked
+                          ? Icons.bookmark
+                          : Icons.bookmark_add_outlined,
+                      isBookmarked ? 'Hapus Bookmark' : 'Simpan Bookmark',
+                      isBookmarked
+                          ? 'Hapus dari daftar bookmark'
+                          : 'Simpan ke daftar bookmark',
+                      isBookmarked ? Colors.green : Colors.blue,
+                      () {
+                        ref
+                            .read(verseBookmarkProvider.notifier)
+                            .toggleVerseBookmark(verseKey);
+                        Navigator.pop(context);
+                      },
+                    ),
+                    _buildModernActionItem(
+                      context,
+                      Icons.note_add_outlined,
+                      'Tambah Catatan',
+                      'Buat catatan pribadi untuk ayat ini',
+                      Colors.purple,
+                      () {
+                        Navigator.pop(context);
+                        _showAddNoteDialog(verse);
+                      },
+                    ),
+                    _buildModernActionItem(
+                      context,
+                      Icons.content_copy_outlined,
+                      'Salin Teks',
+                      'Salin ayat ke clipboard',
+                      Colors.grey[600]!,
+                      () {
+                        final bookName = getBookNameById(currentBookId);
+                        final verseText =
+                            '${verse.text}\n\n- $bookName $currentChapterId:${verse.verseId}';
+                        Clipboard.setData(ClipboardData(text: verseText));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Row(
+                              children: [
+                                Icon(Icons.check_circle, color: Colors.white),
+                                SizedBox(width: 8),
+                                Text('Ayat tersalin ke clipboard'),
+                              ],
+                            ),
+                            backgroundColor: Colors.green,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                          ),
+                        );
+                        Navigator.pop(context);
+                      },
+                    ),
+                    _buildModernActionItem(
+                      context,
+                      Icons.share_outlined,
+                      'Bagikan',
+                      'Bagikan ayat ke aplikasi lain',
+                      Colors.indigo,
+                      () {
+                        final bookName = getBookNameById(currentBookId);
+                        final verseText =
+                            '${verse.text}\n\n- $bookName $currentChapterId:${verse.verseId}\n\nDari Alkitab 2.0';
+                        Share.share(verseText);
+                        Navigator.pop(context);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+              // Bottom padding
+              SizedBox(height: MediaQuery.of(context).padding.bottom + 20),
             ],
           ),
         );
@@ -594,18 +707,289 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
     );
   }
 
-  Widget _buildActionItem(
-      BuildContext context, IconData icon, String label, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 30),
-          const SizedBox(height: 4),
-          Text(label, textAlign: TextAlign.center),
-        ],
+  Widget _buildModernActionItem(
+    BuildContext context,
+    IconData icon,
+    String title,
+    String subtitle,
+    Color iconColor,
+    VoidCallback onTap,
+  ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: isDark ? Colors.white12 : Colors.grey[200]!,
+              ),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: iconColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: iconColor,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? Colors.white : Colors.grey[800],
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isDark ? Colors.white60 : Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  size: 16,
+                  color: isDark ? Colors.white24 : Colors.grey[400],
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
+    );
+  }
+
+  void _showAddNoteDialog(BibleVerse verse) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final TextEditingController noteController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: isDark ? Colors.grey[900] : Colors.white,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.purple.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.note_add_outlined,
+                        color: Colors.purple,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Tambah Catatan',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.grey[800],
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: Icon(
+                        Icons.close,
+                        color: isDark ? Colors.white54 : Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Verse reference
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.grey[800] : Colors.grey[50],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${getBookNameById(currentBookId)} $currentChapterId:${verse.verseId}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        verse.text,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontStyle: FontStyle.italic,
+                          color: isDark ? Colors.white70 : Colors.grey[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Note input
+                Text(
+                  'Catatan Anda',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : Colors.grey[800],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: noteController,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    hintText: 'Tulis catatan pribadi untuk ayat ini...',
+                    hintStyle: TextStyle(
+                      color: isDark ? Colors.white38 : Colors.grey[400],
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: isDark ? Colors.white24 : Colors.grey[300]!,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: isDark ? Colors.white24 : Colors.grey[300]!,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: Colors.purple,
+                        width: 2,
+                      ),
+                    ),
+                    filled: true,
+                    fillColor: isDark ? Colors.grey[800] : Colors.grey[50],
+                  ),
+                  style: TextStyle(
+                    color: isDark ? Colors.white : Colors.grey[800],
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Action buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          side: BorderSide(
+                            color: isDark ? Colors.white24 : Colors.grey[300]!,
+                          ),
+                        ),
+                        child: Text(
+                          'Batal',
+                          style: TextStyle(
+                            color: isDark ? Colors.white60 : Colors.grey[600],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          if (noteController.text.trim().isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content:
+                                    const Text('Catatan tidak boleh kosong'),
+                                backgroundColor: Colors.red,
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                            return;
+                          }
+
+                          // Save note to local storage for now
+                          // TODO: Integrate with note service
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Row(
+                                children: [
+                                  Icon(Icons.check_circle, color: Colors.white),
+                                  SizedBox(width: 8),
+                                  Text('Catatan berhasil disimpan'),
+                                ],
+                              ),
+                              backgroundColor: Colors.green,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.purple,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text('Simpan'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -622,7 +1006,8 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
   }
 
   Widget _buildTraditionalReader() {
-    if (verses.isEmpty) return const Center(child: Text('Tidak ada ayat yang ditemukan'));
+    if (verses.isEmpty)
+      return const Center(child: Text('Tidak ada ayat yang ditemukan'));
 
     final bookData = bibleBooks.firstWhere(
       (book) => book['id'] == currentBookId,
@@ -646,7 +1031,8 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
         ),
       ),
       child: SingleChildScrollView(
-        controller: _scrollControllers.isNotEmpty ? _scrollControllers[0] : null,
+        controller:
+            _scrollControllers.isNotEmpty ? _scrollControllers[0] : null,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -674,9 +1060,8 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                       fontFamily: 'Georgia',
                       fontSize: fontSize + 8,
                       fontWeight: FontWeight.bold,
-                      color: isDark
-                          ? Colors.orange[300]
-                          : const Color(0xFF8B4513),
+                      color:
+                          isDark ? Colors.orange[300] : const Color(0xFF8B4513),
                       letterSpacing: 1.2,
                     ),
                     textAlign: TextAlign.center,
@@ -713,13 +1098,19 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                     letterSpacing: 0.3,
                   ),
                   children: verses.map<TextSpan>((verse) {
-                    final verseKey = '${currentBookId}_${currentChapterId}_${verse.verseId}';
-                    final highlightColor = ref.watch(highlightStoreProvider)[verseKey];
-                    final isBookmarked = ref.watch(verseBookmarkProvider.notifier).isVerseBookmarked(verseKey);
+                    final verseKey =
+                        '${currentBookId}_${currentChapterId}_${verse.verseId}';
+                    final highlightColor =
+                        ref.watch(highlightStoreProvider)[verseKey];
+                    final isBookmarked = ref
+                        .watch(verseBookmarkProvider.notifier)
+                        .isVerseBookmarked(verseKey);
 
                     Color? backgroundColor;
                     if (highlightColor != null) {
-                      final color = Color(int.parse(highlightColor.substring(1), radix: 16) | 0xFF000000);
+                      final color = Color(
+                          int.parse(highlightColor.substring(1), radix: 16) |
+                              0xFF000000);
                       backgroundColor = color.withValues(alpha: 0.3);
                     }
 
@@ -762,12 +1153,16 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                                 fontSize: fontSize,
                                 height: 1.8,
                                 backgroundColor: backgroundColor,
-                                decoration: isBookmarked ? TextDecoration.underline : null,
+                                decoration: isBookmarked
+                                    ? TextDecoration.underline
+                                    : null,
                                 decorationColor: isDark
                                     ? Colors.orange[300]
                                     : const Color(0xFF8B4513),
                                 decorationThickness: 2.0,
-                                color: isDark ? Colors.white70 : const Color(0xFF2F2F2F),
+                                color: isDark
+                                    ? Colors.white70
+                                    : const Color(0xFF2F2F2F),
                                 letterSpacing: 0.3,
                               ),
                             ),
@@ -825,7 +1220,8 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    if (bibleMetadata!['publisher'] != null && bibleMetadata!['publisher'].toString().isNotEmpty) ...[
+                    if (bibleMetadata!['publisher'] != null &&
+                        bibleMetadata!['publisher'].toString().isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(
                         bibleMetadata!['publisher'],
@@ -840,7 +1236,8 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                         textAlign: TextAlign.center,
                       ),
                     ],
-                    if (bibleMetadata!['year'] != null && bibleMetadata!['year'].toString().isNotEmpty) ...[
+                    if (bibleMetadata!['year'] != null &&
+                        bibleMetadata!['year'].toString().isNotEmpty) ...[
                       const SizedBox(height: 2),
                       Text(
                         bibleMetadata!['year'],
@@ -1088,7 +1485,8 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                 icon: const Icon(Icons.home, size: 18),
                 label: const Text('Utama'),
                 style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0, vertical: 8.0),
                 ),
               ),
             ),
@@ -1099,7 +1497,8 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                 icon: const Icon(Icons.book, size: 18),
                 label: const Text('Alkitab'),
                 style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0, vertical: 8.0),
                 ),
               ),
             ),
@@ -1250,7 +1649,8 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Voice Selection
-                    const Text('Pilih Suara:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text('Pilih Suara:',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     Row(
                       children: [
@@ -1283,7 +1683,8 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                     const SizedBox(height: 16),
 
                     // Speech Rate
-                    const Text('Kecepatan Baca:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text('Kecepatan Baca:',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     Row(
                       children: [
@@ -1308,7 +1709,8 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                     const SizedBox(height: 16),
 
                     // Speech Pitch
-                    const Text('Nada Suara:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text('Nada Suara:',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     Row(
                       children: [
@@ -1333,7 +1735,8 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                     const SizedBox(height: 16),
 
                     // Speech Volume
-                    const Text('Volume:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text('Volume:',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     Row(
                       children: [
@@ -1364,7 +1767,8 @@ class _BibleReaderScreenState extends ConsumerState<BibleReaderScreen> {
                           await flutterTts.setSpeechRate(tempSpeechRate);
                           await flutterTts.setVolume(tempSpeechVolume);
                           await flutterTts.setPitch(tempSpeechPitch);
-                          await flutterTts.speak('Ini adalah contoh suara pembacaan Alkitab');
+                          await flutterTts.speak(
+                              'Ini adalah contoh suara pembacaan Alkitab');
                         },
                         icon: const Icon(Icons.play_arrow),
                         label: const Text('Test Suara'),

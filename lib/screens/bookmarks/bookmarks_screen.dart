@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models/devotional_model.dart';
 import '../../services/devotional_service.dart';
@@ -49,24 +50,38 @@ class _BookmarksScreenState extends ConsumerState<BookmarksScreen>
 
   Future<List<Map<String, dynamic>>> fetchBookmarks() async {
     final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) throw Exception("User not authenticated");
+
+    // If no authenticated user, return local bookmarks
+    if (user == null) {
+      debugPrint("No authenticated user, using local bookmarks");
+      return await _getLocalBookmarks();
+    }
 
     debugPrint("Current user ID: ${user.id}");
 
-    final response = await Supabase.instance.client
-        .from('user_bookmarks')
-        .select()
-        .eq('user_id', user.id)
-        .order('created_at', ascending: false);
+    try {
+      final response = await Supabase.instance.client
+          .from('user_bookmarks')
+          .select()
+          .eq('user_id', user.id)
+          .order('created_at', ascending: false);
 
-    debugPrint("Bookmarks response: $response");
-
-    return List<Map<String, dynamic>>.from(response);
+      debugPrint("Bookmarks response: $response");
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint("Error fetching remote bookmarks: $e, falling back to local");
+      return await _getLocalBookmarks();
+    }
   }
 
   Future<List<Map<String, dynamic>>> fetchNotes() async {
     final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) throw Exception("User not authenticated");
+
+    // If no authenticated user, return empty for now (could implement local notes later)
+    if (user == null) {
+      debugPrint("No authenticated user, returning empty notes");
+      return [];
+    }
 
     try {
       final response = await Supabase.instance.client
@@ -78,6 +93,57 @@ class _BookmarksScreenState extends ConsumerState<BookmarksScreen>
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       debugPrint("Error fetching notes: $e");
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _getLocalBookmarks() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final chapterBookmarks = prefs.getStringList('bible_chapter_bookmarks') ?? [];
+      final verseBookmarks = prefs.getStringList('bible_verse_bookmarks') ?? [];
+
+      List<Map<String, dynamic>> bookmarks = [];
+
+      // Add chapter bookmarks
+      for (String bookmark in chapterBookmarks) {
+        final parts = bookmark.split('_');
+        if (parts.length >= 2) {
+          bookmarks.add({
+            'id': bookmark,
+            'type': 'bible',
+            'bookmark_type': 'bible_chapter',
+            'book_id': parts[0],
+            'chapter_id': int.tryParse(parts[1]) ?? 1,
+            'verse_id': null,
+            'verse_reference': '${parts[0]} ${parts[1]}',
+            'title': 'Bible - ${parts[0]} ${parts[1]}',
+            'created_at': DateTime.now().toIso8601String(),
+          });
+        }
+      }
+
+      // Add verse bookmarks
+      for (String bookmark in verseBookmarks) {
+        final parts = bookmark.split('_');
+        if (parts.length >= 3) {
+          bookmarks.add({
+            'id': bookmark,
+            'type': 'bible',
+            'bookmark_type': 'bible_verse',
+            'book_id': parts[0],
+            'chapter_id': int.tryParse(parts[1]) ?? 1,
+            'verse_id': int.tryParse(parts[2]) ?? 1,
+            'verse_reference': '${parts[0]} ${parts[1]}:${parts[2]}',
+            'title': 'Bible - ${parts[0]} ${parts[1]}:${parts[2]}',
+            'created_at': DateTime.now().toIso8601String(),
+          });
+        }
+      }
+
+      return bookmarks;
+    } catch (e) {
+      debugPrint("Error getting local bookmarks: $e");
       return [];
     }
   }
@@ -151,7 +217,7 @@ class _BookmarksScreenState extends ConsumerState<BookmarksScreen>
                     'assets/images/header_image.png',
                     fit: BoxFit.cover,
                   ),
-                  Container(color: Colors.black.withOpacity(0.5)),
+                  Container(color: Colors.black.withValues(alpha: 0.5)),
                   const Positioned(
                     left: 16,
                     bottom: 16,

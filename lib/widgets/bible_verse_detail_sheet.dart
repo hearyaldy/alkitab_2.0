@@ -110,17 +110,21 @@ class BibleVerseDetailSheet extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    TextButton.icon(
-                      icon: const Icon(Icons.share),
-                      label: const Text('Share'),
-                      onPressed: () {
-                        Navigator.pop(context); // Close the bottom sheet
-                        onShare();
-                      },
+                    Flexible(
+                      child: TextButton.icon(
+                        icon: const Icon(Icons.share),
+                        label: const Text('Share'),
+                        onPressed: () {
+                          Navigator.pop(context); // Close the bottom sheet
+                          onShare();
+                        },
+                      ),
                     ),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.book),
-                      label: const Text('Go to Passage'),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.book),
+                        label: const Text('Go to Passage'),
                       onPressed: () {
                         Navigator.pop(context); // Close the bottom sheet
                         try {
@@ -170,9 +174,10 @@ class BibleVerseDetailSheet extends StatelessWidget {
                           );
                         }
                       },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.indigo,
-                        foregroundColor: Colors.white,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.indigo,
+                          foregroundColor: Colors.white,
+                        ),
                       ),
                     ),
                   ],
