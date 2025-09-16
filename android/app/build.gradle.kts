@@ -16,7 +16,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.alkitab.app"
+    namespace = "com.haweeinc.alkitab"
     compileSdk = 35
     ndkVersion = "27.0.12077973"
 
@@ -30,7 +30,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.alkitab.app"
+        applicationId = "com.haweeinc.alkitab"
         minSdk = 21
         targetSdk = 35
         versionCode = flutter.versionCode

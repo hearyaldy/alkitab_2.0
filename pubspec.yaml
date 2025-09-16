@@ -1,11 +1,11 @@
 name: alkitab_2_0
-description: A Malay Bible app with Supabase authentication
+description: Alkitab 2.0 - Modern Malay Bible App with offline reading, bookmarks, notes, highlighting, and cloud sync
 
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
-publish_to: 'none' 
+publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.1.0+2
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

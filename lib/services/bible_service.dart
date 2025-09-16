@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:alkitab_2_0/models/bible_model.dart';
@@ -10,14 +11,15 @@ class BibleService {
 
   // Cache for verses to avoid repeated API calls
   final Map<String, List<BibleVerse>> _verseCache = {};
+  final Map<String, Map<String, dynamic>> _assetBibleCache = {};
 
   // Current translation state
   String _currentTranslation = 'indo_tb';
 
   // Available translations
   final List<Map<String, String>> _availableTranslations = [
-    {'id': 'indo_tb', 'name': 'Terjemahan Baru'},
-    {'id': 'indo_tm', 'name': 'Terjemahan Masa Kini'},
+    {'id': 'indo_tb', 'name': 'Terjemahan Baru', 'language': 'Indonesian'},
+    {'id': 'indo_tm', 'name': 'Terjemahan Masa Kini', 'language': 'Indonesian'},
   ];
 
   // Getters for compatibility
@@ -28,6 +30,8 @@ class BibleService {
   void setCurrentTranslation(String translationId) {
     if (_availableTranslations.any((t) => t['id'] == translationId)) {
       _currentTranslation = translationId;
+      // Clear verse cache when translation changes
+      _verseCache.clear();
     }
   }
 
@@ -36,12 +40,31 @@ class BibleService {
     return getChapterVerses(bookId, chapterId);
   }
 
+  // Load Bible data from assets
+  Future<Map<String, dynamic>> _loadBibleFromAssets(String translationId) async {
+    if (_assetBibleCache.containsKey(translationId)) {
+      return _assetBibleCache[translationId]!;
+    }
+
+    try {
+      final String assetPath = 'assets/bibles/$translationId.json';
+      final String response = await rootBundle.loadString(assetPath);
+      final Map<String, dynamic> bibleData = json.decode(response);
+
+      _assetBibleCache[translationId] = bibleData;
+      return bibleData;
+    } catch (e) {
+      debugPrint('Error loading Bible from assets ($translationId): $e');
+      return {};
+    }
+  }
+
   // Get verses for a specific chapter
   Future<List<BibleVerse>> getChapterVerses(
     String bookId,
     int chapterId,
   ) async {
-    final cacheKey = '${bookId}_$chapterId';
+    final cacheKey = '${_currentTranslation}_${bookId}_$chapterId';
 
     // Return cached data if available
     if (_verseCache.containsKey(cacheKey)) {
@@ -49,14 +72,21 @@ class BibleService {
     }
 
     try {
-      // Try to load from local storage first
-      final verses = await _loadFromLocalStorage(cacheKey);
+      // First, try to load from assets
+      final verses = await _loadFromAssets(bookId, chapterId);
       if (verses.isNotEmpty) {
         _verseCache[cacheKey] = verses;
         return verses;
       }
 
-      // If not in local storage, fetch from Supabase
+      // Fallback to local storage
+      final localVerses = await _loadFromLocalStorage(cacheKey);
+      if (localVerses.isNotEmpty) {
+        _verseCache[cacheKey] = localVerses;
+        return localVerses;
+      }
+
+      // Last resort: try Supabase (for compatibility)
       final response = await supabase
           .from('bible_verses')
           .select()
@@ -80,7 +110,7 @@ class BibleService {
     } catch (e) {
       debugPrint('Error fetching verses: $e');
 
-      // Fallback to local storage if available
+      // Final fallback to local storage if available
       final verses = await _loadFromLocalStorage(cacheKey);
       if (verses.isNotEmpty) {
         return verses;
@@ -88,6 +118,54 @@ class BibleService {
 
       return [];
     }
+  }
+
+  // Load verses from assets
+  Future<List<BibleVerse>> _loadFromAssets(String bookId, int chapterId) async {
+    try {
+      final bibleData = await _loadBibleFromAssets(_currentTranslation);
+      final List<dynamic> verses = bibleData['verses'] ?? [];
+
+      // Convert book ID to book number for filtering
+      final bookNumber = _getBookNumber(bookId);
+      if (bookNumber == -1) return [];
+
+      final List<BibleVerse> result = [];
+
+      for (final verseData in verses) {
+        if (verseData['book'] == bookNumber && verseData['chapter'] == chapterId) {
+          result.add(BibleVerse(
+            id: verseData['verse'] ?? 1,
+            bookId: bookId,
+            chapterId: chapterId,
+            verseNumber: verseData['verse'] ?? 1,
+            text: verseData['text'] ?? '',
+          ));
+        }
+      }
+
+      // Sort by verse number
+      result.sort((a, b) => a.verseId.compareTo(b.verseId));
+
+      debugPrint('Loaded ${result.length} verses from assets for $bookId $chapterId');
+      return result;
+    } catch (e) {
+      debugPrint('Error loading verses from assets: $e');
+      return [];
+    }
+  }
+
+  // Convert book ID to book number
+  int _getBookNumber(String bookId) {
+    final book = bibleBooks.firstWhere(
+      (b) => b['id'] == bookId,
+      orElse: () => {},
+    );
+
+    if (book.isEmpty) return -1;
+
+    // Find the index in the bible books list + 1 (since books are numbered from 1)
+    return bibleBooks.indexOf(book) + 1;
   }
 
   // Save verses to local storage

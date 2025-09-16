@@ -11,8 +11,7 @@ import 'router.dart';
 import 'config/theme.dart';
 import 'providers/theme_provider.dart';
 import 'services/local_storage_service.dart';
-import 'services/connectivity_service.dart';
-import 'services/sync_service.dart';
+import 'services/mock_data_service.dart';
 import 'models/bible_model.dart';
 import 'utils/offline_manager.dart';
 
@@ -23,40 +22,40 @@ Future<void> main() async {
   await Hive.initFlutter();
 
   try {
-    await LocalStorageService.initialize().timeout(const Duration(seconds: 10));
-    await OfflineManager().initialize().timeout(const Duration(seconds: 10)); // ✅ Important!
-
+    // Simplified initialization for debugging
     _registerHiveAdapters();
 
-    final connectivityService = ConnectivityService();
-    final syncService = SyncService();
+    // Try to initialize services but don't fail if they timeout
+    try {
+      await LocalStorageService.initialize()
+          .timeout(const Duration(seconds: 5));
+    } catch (e) {
+      print('LocalStorageService initialization failed: $e');
+    }
 
-    connectivityService.connectionStatusStream.listen((isOnline) {
-      if (isOnline) {
-        syncService.performPeriodicSync();
-      }
-    });
+    try {
+      await OfflineManager().initialize().timeout(const Duration(seconds: 5));
+    } catch (e) {
+      print('OfflineManager initialization failed: $e');
+    }
 
-    syncService.startBackgroundSync();
+    // Skip connectivity services for now to debug
+    // final connectivityService = ConnectivityService();
+    // final syncService = SyncService();
 
     await dotenv.load();
     await initializeDateFormatting('ms', null);
 
-    // Only initialize Supabase if valid credentials are provided
-    final supabaseUrl = dotenv.env['SUPABASE_URL'];
-    final supabaseKey = dotenv.env['SUPABASE_ANON_KEY'];
+    // Initialize Supabase with mock/dummy credentials for compatibility
+    await Supabase.initialize(
+      url: 'https://dummy-url.supabase.co',
+      anonKey: 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ',
+    );
+    print('Supabase initialized with mock credentials for offline development.');
 
-    if (supabaseUrl != null &&
-        supabaseKey != null &&
-        supabaseUrl != 'your_supabase_url_here' &&
-        supabaseKey != 'your_supabase_anon_key_here') {
-      await Supabase.initialize(
-        url: supabaseUrl,
-        anonKey: supabaseKey,
-      );
-    } else {
-      print('Warning: Supabase credentials not configured. Running in offline mode.');
-    }
+    // Initialize mock data service for offline development
+    await MockDataService.initialize();
+    print('Mock data service initialized for offline development.');
 
     runApp(const ProviderScope(child: MyApp()));
   } catch (e) {

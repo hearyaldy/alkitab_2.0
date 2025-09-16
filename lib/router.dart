@@ -1,5 +1,4 @@
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
@@ -10,17 +9,14 @@ import 'screens/tabs/bible_tab.dart';
 import 'screens/tabs/devotional_tab.dart';
 import 'screens/tabs/profile_tab.dart';
 import 'screens/settings/settings_screen.dart';
-import 'screens/bible/bible_reader_screen.dart'; // Keep only this one
+import 'screens/bible/bible_reader_screen.dart';
 import 'screens/bookmarks/bookmarks_screen.dart';
 
 final router = GoRouter(
   initialLocation: '/home',
+  // Bypass authentication for mock data development
   redirect: (context, state) {
-    final session = Supabase.instance.client.auth.currentSession;
-    final isLoggingIn =
-        state.fullPath == '/login' || state.fullPath == '/register';
-    if (session == null && !isLoggingIn) return '/login';
-    if (session != null && isLoggingIn) return '/home';
+    // Skip authentication check - allow all users to access the app
     return null;
   },
   routes: [

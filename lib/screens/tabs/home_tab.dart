@@ -2,11 +2,13 @@
 
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../constants/bible_data.dart';
 
 class HomeTab extends StatefulWidget {
   const HomeTab({super.key});
@@ -23,6 +25,10 @@ class _HomeTabState extends State<HomeTab> {
   List<Map<String, dynamic>> _devotionals = [];
   Map<String, dynamic>? _todayDevo;
   List<Map<String, dynamic>> _recentReadings = [];
+  Map<String, dynamic>? _bibleData;
+  int _totalVerses = 0;
+  String _randomVerse = '';
+  String _randomVerseRef = '';
 
   @override
   void initState() {
@@ -37,8 +43,30 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   Future<void> _initializeData() async {
+    await _loadBibleData();
     await _loadDevotionals();
     await _loadReadingHistory();
+  }
+
+  Future<void> _loadBibleData() async {
+    try {
+      final String response = await rootBundle.loadString('assets/bibles/indo_tb.json');
+      _bibleData = json.decode(response);
+
+      final List<dynamic> verses = _bibleData?['verses'] ?? [];
+      _totalVerses = verses.length;
+
+      // Get random verse for today
+      final now = DateTime.now();
+      final randomIndex = (now.day + now.month + now.year) % verses.length;
+      final randomVerseData = verses[randomIndex];
+      _randomVerse = randomVerseData['text'] ?? '';
+      _randomVerseRef = '${randomVerseData['book_name']} ${randomVerseData['chapter']}:${randomVerseData['verse']}';
+
+      debugPrint('Loaded Bible data: $_totalVerses verses');
+    } catch (e) {
+      debugPrint('Error loading Bible data: $e');
+    }
   }
 
   Future<void> _loadDevotionals({bool forceRefresh = false}) async {
@@ -236,6 +264,10 @@ class _HomeTabState extends State<HomeTab> {
         children: [
           _verseOfDayCard(),
           const SizedBox(height: 24),
+          _bibleStatsCard(),
+          const SizedBox(height: 24),
+          _bibleBooksSection(),
+          const SizedBox(height: 24),
           _continueReadingSection(),
           const SizedBox(height: 24),
           _devotionalSection(),
@@ -267,9 +299,9 @@ class _HomeTabState extends State<HomeTab> {
                   icon: const Icon(Icons.share),
                   tooltip: 'Share verse',
                   onPressed: () {
-                    final verse = _todayDevo?['verse_text'] ?? '';
-                    final reference = _todayDevo?['verse_reference'] ?? '';
-                    final content = '"$verse"\n\n📖 $reference';
+                    final verse = _randomVerse.isNotEmpty ? _randomVerse : _todayDevo?['verse_text'] ?? '';
+                    final reference = _randomVerseRef.isNotEmpty ? _randomVerseRef : _todayDevo?['verse_reference'] ?? '';
+                    final content = '"$verse"\n\n📖 $reference\n\nShared from Alkitab 2.0';
                     SharePlus.instance.share(ShareParams(text: content, subject: 'Verse of the Day'));
                   },
                 ),
@@ -277,15 +309,209 @@ class _HomeTabState extends State<HomeTab> {
             ),
             const Divider(),
             const SizedBox(height: 8),
-            Text('"${_todayDevo?['verse_text']}"',
+            Text('"${_randomVerse.isNotEmpty ? _randomVerse : _todayDevo?['verse_text'] ?? 'Loading...'}"',
                 style:
                     const TextStyle(fontSize: 16, fontStyle: FontStyle.italic)),
             const SizedBox(height: 8),
             Text(
-              _todayDevo?['verse_reference'] ?? '',
+              _randomVerseRef.isNotEmpty ? _randomVerseRef : _todayDevo?['verse_reference'] ?? '',
               style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _bibleStatsCard() {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: Theme.of(context).colorScheme.secondaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.analytics,
+                    color: Theme.of(context).colorScheme.onSecondaryContainer),
+                const SizedBox(width: 8),
+                Text('Bible Statistics',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSecondaryContainer,
+                    )),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildStatItem('Books', '66', Icons.book),
+                _buildStatItem('Verses', _totalVerses.toString(), Icons.format_quote),
+                _buildStatItem('Old Test.', '39', Icons.history_edu),
+                _buildStatItem('New Test.', '27', Icons.auto_stories),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatItem(String label, String value, IconData icon) {
+    return Column(
+      children: [
+        Icon(icon, size: 24, color: Theme.of(context).colorScheme.primary),
+        const SizedBox(height: 4),
+        Text(value,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.onSecondaryContainer,
+          )),
+        Text(label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Theme.of(context).colorScheme.onSecondaryContainer.withOpacity(0.7),
+          )),
+      ],
+    );
+  }
+
+  Widget _bibleBooksSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Read the Bible',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                color: Theme.of(context).colorScheme.primaryContainer,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => _showTestamentBooks('OT'),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Icon(Icons.history_edu,
+                          size: 48,
+                          color: Theme.of(context).colorScheme.onPrimaryContainer),
+                        const SizedBox(height: 8),
+                        Text('Old Testament',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onPrimaryContainer,
+                          )),
+                        Text('39 Books',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.7),
+                          )),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                color: Theme.of(context).colorScheme.tertiaryContainer,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => _showTestamentBooks('NT'),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Icon(Icons.auto_stories,
+                          size: 48,
+                          color: Theme.of(context).colorScheme.onTertiaryContainer),
+                        const SizedBox(height: 8),
+                        Text('New Testament',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onTertiaryContainer,
+                          )),
+                        Text('27 Books',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(context).colorScheme.onTertiaryContainer.withOpacity(0.7),
+                          )),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  void _showTestamentBooks(String testament) {
+    final books = testament == 'OT' ? getOldTestamentBooks() : getNewTestamentBooks();
+    final title = testament == 'OT' ? 'Old Testament Books' : 'New Testament Books';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.8,
+        builder: (context, scrollController) => Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(title,
+                  style: const TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.bold)),
+            ),
+            const Divider(),
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                itemCount: books.length,
+                itemBuilder: (context, index) {
+                  final book = books[index];
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      child: Text('${index + 1}',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onPrimary,
+                            fontWeight: FontWeight.bold,
+                          )),
+                    ),
+                    title: Text(book['name']),
+                    subtitle: Text('${book['chapters']} chapters'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.go('/bible-reader?bookId=${book['id']}&chapterId=1');
+                    },
+                  );
+                },
+              ),
             ),
           ],
         ),
