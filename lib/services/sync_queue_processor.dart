@@ -2,7 +2,8 @@
 
 import 'package:flutter/foundation.dart'; // ✅ for debugPrint
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:alkitab_2_0/services/firebase_service.dart';
 
 enum SyncOperationType {
   bookmark,
@@ -12,7 +13,8 @@ enum SyncOperationType {
 }
 
 class SyncQueueProcessor {
-  SupabaseClient get _supabase => Supabase.instance.client;
+  final FirebaseService _firebaseService = FirebaseService();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   Future<void> processQueue() async {
     final syncQueueBox = await Hive.openBox('sync_queue');
@@ -43,7 +45,20 @@ class SyncQueueProcessor {
 
   Future<void> _processBookmarkSync(Map<String, dynamic> bookmarkData) async {
     try {
-      await _supabase.from('user_bookmarks').upsert(bookmarkData);
+      final user = _firebaseService.currentUser;
+      if (user == null) return;
+
+      // Convert user.id to user.uid for Firebase
+      if (bookmarkData['user_id'] != null) {
+        bookmarkData['user_id'] = user.uid;
+      }
+
+      // Add or update the bookmark in Firestore
+      final docId = bookmarkData['id'] ?? _firestore.collection('user_bookmarks').doc().id;
+      await _firestore.collection('user_bookmarks').doc(docId).set(
+        bookmarkData,
+        SetOptions(merge: true),
+      );
     } catch (e) {
       debugPrint('Bookmark sync error during processing: $e');
     }
@@ -51,7 +66,20 @@ class SyncQueueProcessor {
 
   Future<void> _processSettingsSync(Map<String, dynamic> settingsData) async {
     try {
-      await _supabase.from('user_settings').upsert(settingsData);
+      final user = _firebaseService.currentUser;
+      if (user == null) return;
+
+      // Convert user.id to user.uid for Firebase
+      if (settingsData['user_id'] != null) {
+        settingsData['user_id'] = user.uid;
+      }
+
+      // Add or update the settings in Firestore
+      final docId = settingsData['id'] ?? _firestore.collection('user_settings').doc().id;
+      await _firestore.collection('user_settings').doc(docId).set(
+        settingsData,
+        SetOptions(merge: true),
+      );
     } catch (e) {
       debugPrint('Settings sync error during processing: $e');
     }

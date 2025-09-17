@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 
 import '../../providers/firebase_auth_provider.dart';
 import '../../providers/theme_provider.dart';
@@ -716,7 +715,7 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
                             _buildModernTile(
                               context,
                               'Email',
-                              (user as firebase_auth.User).email ?? '',
+                              (user).email ?? '',
                               '',
                               null,
                             ),

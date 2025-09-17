@@ -2,12 +2,13 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models/devotional_model.dart';
 import '../../services/devotional_service.dart';
+import '../../services/bookmark_service.dart';
+import '../../services/sync_queue_processor.dart';
 import '../../providers/sync_providers.dart';
 
 // Import existing widgets
@@ -26,18 +27,18 @@ class BookmarksScreen extends ConsumerStatefulWidget {
 class _BookmarksScreenState extends ConsumerState<BookmarksScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  late Future<List<Map<String, dynamic>>> _bookmarkFuture;
   late Future<List<DevotionalModel>> _devotionalsFuture;
   late Future<List<Map<String, dynamic>>> _notesFuture;
 
   final DevotionalService _devotionalService = DevotionalService();
+  late final BookmarkService _bookmarkService;
   final MaterialColor _themeColor = Colors.indigo;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    _bookmarkFuture = fetchBookmarks();
+    _bookmarkService = BookmarkService(SyncQueueProcessor());
     _devotionalsFuture = _devotionalService.getAllDevotionals();
     _notesFuture = fetchNotes();
   }
@@ -49,48 +50,19 @@ class _BookmarksScreenState extends ConsumerState<BookmarksScreen>
   }
 
   Future<List<Map<String, dynamic>>> fetchBookmarks() async {
-    final user = Supabase.instance.client.auth.currentUser;
-
-    // If no authenticated user, return local bookmarks
-    if (user == null) {
-      debugPrint("No authenticated user, using local bookmarks");
-      return await _getLocalBookmarks();
-    }
-
-    debugPrint("Current user ID: ${user.id}");
-
     try {
-      final response = await Supabase.instance.client
-          .from('user_bookmarks')
-          .select()
-          .eq('user_id', user.id)
-          .order('created_at', ascending: false);
-
-      debugPrint("Bookmarks response: $response");
-      return List<Map<String, dynamic>>.from(response);
+      final bookmarks = await _bookmarkService.getUserBookmarks();
+      return bookmarks.map((bookmark) => bookmark.toJson()).toList();
     } catch (e) {
-      debugPrint("Error fetching remote bookmarks: $e, falling back to local");
+      debugPrint("Error fetching bookmarks: $e, falling back to local");
       return await _getLocalBookmarks();
     }
   }
 
   Future<List<Map<String, dynamic>>> fetchNotes() async {
-    final user = Supabase.instance.client.auth.currentUser;
-
-    // If no authenticated user, return empty for now (could implement local notes later)
-    if (user == null) {
-      debugPrint("No authenticated user, returning empty notes");
-      return [];
-    }
-
     try {
-      final response = await Supabase.instance.client
-          .from('user_notes')
-          .select()
-          .eq('user_id', user.id)
-          .order('updated_at', ascending: false);
-
-      return List<Map<String, dynamic>>.from(response);
+      final bookmarks = await _bookmarkService.getUserBookmarks(type: 'note');
+      return bookmarks.map((bookmark) => bookmark.toJson()).toList();
     } catch (e) {
       debugPrint("Error fetching notes: $e");
       return [];
@@ -291,12 +263,10 @@ class _BookmarksScreenState extends ConsumerState<BookmarksScreen>
 
                       // Create the widget explicitly with its constructor
                       return DevotionalBookmarksList(
-                        bookmarkFuture: _bookmarkFuture,
                         devotionals: devotionals,
                         devotionalService: _devotionalService,
                         onRefresh: () {
                           setState(() {
-                            _bookmarkFuture = fetchBookmarks();
                             _devotionalsFuture =
                                 _devotionalService.refreshCache().then((_) {
                               return _devotionalService.getAllDevotionals();
@@ -309,10 +279,8 @@ class _BookmarksScreenState extends ConsumerState<BookmarksScreen>
 
                   // Bible Verses Tab
                   BibleBookmarksList(
-                    bookmarkFuture: _bookmarkFuture,
                     onRefresh: () {
                       setState(() {
-                        _bookmarkFuture = fetchBookmarks();
                       });
                     },
                   ),

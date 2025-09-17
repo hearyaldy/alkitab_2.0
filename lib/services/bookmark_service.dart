@@ -4,26 +4,27 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/bookmark_model.dart';
 import '../services/connectivity_service.dart';
 import '../services/sync_queue_processor.dart';
+import '../services/firebase_service.dart';
 import '../utils/offline_manager.dart';
 import '../utils/sync_conflict_resolver.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class BookmarkService {
   final SyncQueueProcessor _syncQueueProcessor;
   final ConnectivityService _connectivityService = ConnectivityService();
   final OfflineManager _offlineManager = OfflineManager();
   final Uuid _uuid = const Uuid();
+  final FirebaseService _firebaseService = FirebaseService();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   static const String _bookmarksBoxName = 'bookmarks';
 
   BookmarkService(this._syncQueueProcessor);
-
-  SupabaseClient get _supabase => Supabase.instance.client;
 
   Future<List<BookmarkModel>> getUserBookmarks({String? type}) async {
     final localBookmarks = await _getLocalBookmarks(type: type);
@@ -69,16 +70,21 @@ class BookmarkService {
   }
 
   Future<List<BookmarkModel>> _getServerBookmarks({String? type}) async {
-    final user = _supabase.auth.currentUser;
+    final user = _firebaseService.currentUser;
     if (user == null) return [];
 
-    var query =
-        _supabase.from('user_bookmarks').select().eq('user_id', user.id);
-    if (type != null) query = query.eq('type', type);
+    Query query = _firestore
+        .collection('user_bookmarks')
+        .where('user_id', isEqualTo: user.uid);
 
-    final response = await query;
-    final bookmarks =
-        response.map<BookmarkModel>((e) => BookmarkModel.fromJson(e)).toList();
+    if (type != null) {
+      query = query.where('type', isEqualTo: type);
+    }
+
+    final snapshot = await query.get();
+    final bookmarks = snapshot.docs
+        .map((doc) => BookmarkModel.fromJson(doc.data() as Map<String, dynamic>))
+        .toList();
     await _offlineManager.updateContentTimestamp('bookmarks');
     return bookmarks;
   }
@@ -107,7 +113,7 @@ class BookmarkService {
     Map<String, dynamic>? reflectionQuestions,
     String? prayer,
   }) async {
-    final userId = _supabase.auth.currentUser?.id ?? 'offline_user';
+    final userId = _firebaseService.currentUser?.uid ?? 'offline_user';
     final bookmarkId = _uuid.v4();
     final data = {
       'id': bookmarkId,
@@ -138,14 +144,14 @@ class BookmarkService {
     if (_connectivityService.isOnline) {
       try {
         final uploadData = {...data}..remove('operation');
-        final response = await _supabase
-            .from('user_bookmarks')
-            .upsert(uploadData)
-            .select()
-            .single();
-        await box.put(
-            bookmarkId, jsonEncode({...data, ...response, 'is_synced': true}));
-        return BookmarkModel.fromJson(response);
+        await _firestore
+            .collection('user_bookmarks')
+            .doc(bookmarkId)
+            .set(uploadData);
+
+        final updatedData = {...data, 'is_synced': true};
+        await box.put(bookmarkId, jsonEncode(updatedData));
+        return BookmarkModel.fromJson(updatedData);
       } catch (e) {
         await _syncQueueProcessor.addToQueue(
             type: SyncOperationType.bookmark, data: data);
@@ -206,20 +212,17 @@ class BookmarkService {
 
     if (_connectivityService.isOnline) {
       try {
-        final user = _supabase.auth.currentUser;
+        final user = _firebaseService.currentUser;
         if (user != null) {
           final uploadData = {...updatedData}..remove('operation');
-          final response = await _supabase
-              .from('user_bookmarks')
-              .update(uploadData)
-              .eq('id', id)
-              .eq('user_id', user.id)
-              .select()
-              .single();
+          await _firestore
+              .collection('user_bookmarks')
+              .doc(id)
+              .update(Map<String, dynamic>.from(uploadData));
 
-          await box.put(
-              id, jsonEncode({...uploadData, ...response, 'is_synced': true}));
-          return BookmarkModel.fromJson(response);
+          final finalData = Map<String, dynamic>.from({...uploadData, 'is_synced': true});
+          await box.put(id, jsonEncode(finalData));
+          return BookmarkModel.fromJson(finalData);
         }
       } catch (e) {
         debugPrint('Server bookmark update error: $e');
@@ -245,13 +248,12 @@ class BookmarkService {
 
     if (_connectivityService.isOnline) {
       try {
-        final user = _supabase.auth.currentUser;
+        final user = _firebaseService.currentUser;
         if (user != null) {
-          await _supabase
-              .from('user_bookmarks')
-              .delete()
-              .eq('id', bookmarkId)
-              .eq('user_id', user.id);
+          await _firestore
+              .collection('user_bookmarks')
+              .doc(bookmarkId)
+              .delete();
         } else {
           await _syncQueueProcessor.addToQueue(
               type: SyncOperationType.bookmark,
@@ -298,7 +300,7 @@ class BookmarkService {
 
   Future<void> processBookmarkSyncQueue() async {
     if (!_connectivityService.isOnline) return;
-    final user = _supabase.auth.currentUser;
+    final user = _firebaseService.currentUser;
     if (user == null) return;
     await _syncQueueProcessor.processQueue();
     await _offlineManager.updateContentTimestamp('bookmarks');

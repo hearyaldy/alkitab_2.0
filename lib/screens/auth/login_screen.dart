@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../services/auth_service.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -32,17 +33,22 @@ class LoginScreenState extends ConsumerState<LoginScreen> {
       });
 
       try {
-        final response = await Supabase.instance.client.auth.signInWithPassword(
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
+        final credential = await AuthService.signInWithEmailPassword(
+          _emailController.text.trim(),
+          _passwordController.text,
         );
 
-        final user = response.user;
-        if (user == null ||
-            user.identities == null ||
-            user.identities!.isEmpty) {
+        if (credential == null) {
           setState(() {
-            _errorMessage = 'Email not confirmed. Please check your inbox.';
+            _errorMessage = 'Login failed. Please check your credentials.';
+          });
+          return;
+        }
+
+        final user = credential.user;
+        if (user != null && !user.emailVerified) {
+          setState(() {
+            _errorMessage = 'Email not verified. Please check your inbox.';
           });
           return;
         }
@@ -50,9 +56,24 @@ class LoginScreenState extends ConsumerState<LoginScreen> {
         if (mounted) {
           context.go('/home');
         }
-      } on AuthException catch (e) {
+      } on FirebaseAuthException catch (e) {
         setState(() {
-          _errorMessage = e.message;
+          switch (e.code) {
+            case 'user-not-found':
+              _errorMessage = 'No user found with this email.';
+              break;
+            case 'wrong-password':
+              _errorMessage = 'Incorrect password.';
+              break;
+            case 'invalid-email':
+              _errorMessage = 'Invalid email address.';
+              break;
+            case 'user-disabled':
+              _errorMessage = 'This account has been disabled.';
+              break;
+            default:
+              _errorMessage = e.message ?? 'An error occurred during login.';
+          }
         });
       } catch (e) {
         setState(() {

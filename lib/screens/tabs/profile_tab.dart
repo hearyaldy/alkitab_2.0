@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../providers/profile_photo_provider.dart';
+import '../../services/auth_service.dart';
+import '../../services/user_service.dart';
 
 class ProfileTab extends ConsumerStatefulWidget {
   const ProfileTab({super.key});
@@ -22,19 +24,18 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   late TextEditingController _emailController;
   String _lastLogin = 'Not available';
   final String _lastPasswordChange = 'Not available';
-  File? _profileImage;
   String? _photoUrl;
+  final UserService _userService = UserService();
 
-  final user = Supabase.instance.client.auth.currentUser;
+  User? get user => AuthService.currentUser;
 
   @override
   void initState() {
     super.initState();
-    final userMeta = user?.userMetadata;
-    _nameController = TextEditingController(text: userMeta?['full_name'] ?? '');
+    _nameController = TextEditingController(text: user?.displayName ?? '');
     _emailController = TextEditingController(text: user?.email ?? '');
-    _photoUrl = userMeta?['profile_url'];
-    _lastLogin = user?.lastSignInAt ?? 'Not available';
+    _photoUrl = user?.photoURL;
+    _lastLogin = user?.metadata.lastSignInTime?.toString() ?? 'Not available';
   }
 
   @override
@@ -62,17 +63,13 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
       final file = File(pickedFile.path);
       final compressed = await compressImage(file);
       if (compressed != null) {
-        final userId = user!.id;
-        final publicUrl = await _uploadProfilePhoto(compressed, userId);
+        final publicUrl = await _userService.uploadProfilePhoto(compressed);
         if (publicUrl != null) {
-          await Supabase.instance.client.auth.updateUser(
-            UserAttributes(data: {'profile_url': publicUrl}),
-          );
+          await _userService.updateProfile(profilePhotoUrl: publicUrl);
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('profile_photo', publicUrl);
           ref.read(profilePhotoProvider.notifier).updateProfilePhoto(publicUrl);
           setState(() {
-            _profileImage = null;
             _photoUrl = publicUrl;
           });
         }
@@ -80,36 +77,13 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     }
   }
 
-  Future<String?> _uploadProfilePhoto(File imageFile, String userId) async {
-    final fileName = 'profile-images/profile_$userId.jpg';
-    try {
-      await Supabase.instance.client.storage.from('profile-images').upload(
-          fileName, imageFile,
-          fileOptions: const FileOptions(upsert: true));
-
-      final publicUrl = Supabase.instance.client.storage
-          .from('profile-images')
-          .getPublicUrl(fileName);
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Photo updated.')));
-      return publicUrl;
-    } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Upload failed: $e')));
-      return null;
-    }
-  }
 
   Future<void> _updateProfile() async {
     if (_formKey.currentState?.validate() ?? false) {
       final newName = _nameController.text.trim();
       try {
-        final response = await Supabase.instance.client.auth.updateUser(
-          UserAttributes(
-              email: _emailController.text, data: {'full_name': newName}),
-        );
-        if (response.user != null) {
+        final result = await _userService.updateProfile(displayName: newName);
+        if (result != null) {
           ScaffoldMessenger.of(context)
               .showSnackBar(const SnackBar(content: Text("Profile updated.")));
         } else {
@@ -140,7 +114,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
       ),
     );
     if (confirm == true) {
-      await Supabase.instance.client.auth.signOut();
+      await AuthService.signOut();
       if (mounted) context.go('/login');
     }
   }

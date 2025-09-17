@@ -2,12 +2,14 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:alkitab_2_0/models/bible_model.dart';
 import 'package:alkitab_2_0/constants/bible_data.dart';
+import 'package:alkitab_2_0/services/firebase_service.dart';
 
 class BibleService {
-  final supabase = Supabase.instance.client;
+  final FirebaseService _firebaseService = FirebaseService();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Cache for verses to avoid repeated API calls
   final Map<String, List<BibleVerse>> _verseCache = {};
@@ -86,18 +88,18 @@ class BibleService {
         return localVerses;
       }
 
-      // Last resort: try Supabase (for compatibility)
-      final response = await supabase
-          .from('bible_verses')
-          .select()
-          .eq('book_id', bookId)
-          .eq('chapter_id', chapterId)
-          .order('verse_id');
+      // Last resort: try Firebase Firestore (for compatibility)
+      final querySnapshot = await _firestore
+          .collection('bible_verses')
+          .where('book_id', isEqualTo: bookId)
+          .where('chapter_id', isEqualTo: chapterId)
+          .orderBy('verse_id')
+          .get();
 
       final List<BibleVerse> result = [];
 
-      for (final item in response) {
-        result.add(BibleVerse.fromJson(item));
+      for (final doc in querySnapshot.docs) {
+        result.add(BibleVerse.fromJson(doc.data()));
       }
 
       // Cache the data
@@ -212,14 +214,18 @@ class BibleService {
     if (term.isEmpty) return [];
 
     try {
-      final response = await supabase
-          .from('bible_verses')
-          .select()
-          .textSearch('text', term)
-          .limit(100);
+      // Note: Firestore doesn't have full-text search like Supabase
+      // For now, this will search for exact matches or contains
+      // For better search functionality, consider using Algolia or similar
+      final querySnapshot = await _firestore
+          .collection('bible_verses')
+          .where('text', isGreaterThanOrEqualTo: term)
+          .where('text', isLessThan: term + '\uf8ff')
+          .limit(100)
+          .get();
 
-      return response
-          .map<BibleVerse>((item) => BibleVerse.fromJson(item))
+      return querySnapshot.docs
+          .map<BibleVerse>((doc) => BibleVerse.fromJson(doc.data()))
           .toList();
     } catch (e) {
       debugPrint('Error searching Bible: $e');
@@ -229,34 +235,36 @@ class BibleService {
 
   // Get bookmarked verses for the current user
   Future<List<BibleVerse>> getBookmarkedVerses() async {
-    final user = supabase.auth.currentUser;
+    final user = _firebaseService.currentUser;
     if (user == null) return [];
 
     try {
-      final response = await supabase
-          .from('user_bookmarks')
-          .select('book_id, chapter_id, verse_id')
-          .eq('user_id', user.id)
-          .eq('type', 'bible')
-          .eq('bookmark_type', 'bible_verse')
-          .order('created_at', ascending: false);
+      final querySnapshot = await _firestore
+          .collection('user_bookmarks')
+          .where('user_id', isEqualTo: user.uid)
+          .where('type', isEqualTo: 'bible')
+          .where('bookmark_type', isEqualTo: 'bible_verse')
+          .orderBy('created_at', descending: true)
+          .get();
 
       List<BibleVerse> verses = [];
-      for (final bookmark in response) {
-        final bookId = bookmark['book_id'];
-        final chapterId = bookmark['chapter_id'];
-        final verseId = bookmark['verse_id'];
+      for (final doc in querySnapshot.docs) {
+        final data = doc.data();
+        final bookId = data['book_id'];
+        final chapterId = data['chapter_id'];
+        final verseId = data['verse_id'];
 
         if (verseId != null) {
-          final verseResponse = await supabase
-              .from('bible_verses')
-              .select()
-              .eq('book_id', bookId)
-              .eq('chapter_id', chapterId)
-              .eq('verse_id', verseId)
-              .single();
+          final verseSnapshot = await _firestore
+              .collection('bible_verses')
+              .where('book_id', isEqualTo: bookId)
+              .where('chapter_id', isEqualTo: chapterId)
+              .where('verse_id', isEqualTo: verseId)
+              .get();
 
-          verses.add(BibleVerse.fromJson(verseResponse));
+          if (verseSnapshot.docs.isNotEmpty) {
+            verses.add(BibleVerse.fromJson(verseSnapshot.docs.first.data()));
+          }
         }
       }
 
@@ -269,27 +277,30 @@ class BibleService {
 
   // Get bookmarked chapters for the current user
   Future<List<Map<String, dynamic>>> getBookmarkedChapters() async {
-    final user = supabase.auth.currentUser;
+    final user = _firebaseService.currentUser;
     if (user == null) return [];
 
     try {
-      final response = await supabase
-          .from('user_bookmarks')
-          .select('book_id, chapter_id')
-          .eq('user_id', user.id)
-          .eq('type', 'bible')
-          .eq('bookmark_type', 'bible_chapter')
-          .isFilter('verse_id', null)
-          .order('created_at', ascending: false);
+      final querySnapshot = await _firestore
+          .collection('user_bookmarks')
+          .where('user_id', isEqualTo: user.uid)
+          .where('type', isEqualTo: 'bible')
+          .where('bookmark_type', isEqualTo: 'bible_chapter')
+          .where('verse_id', isNull: true)
+          .orderBy('created_at', descending: true)
+          .get();
 
-      return response
-          .map<Map<String, dynamic>>((item) => {
-                'book_id': item['book_id'],
-                'chapter_id': item['chapter_id'],
-                'book_name': bibleBooks.firstWhere(
-                  (book) => book['id'] == item['book_id'],
-                  orElse: () => {'name': item['book_id']},
-                )['name'],
+      return querySnapshot.docs
+          .map<Map<String, dynamic>>((doc) {
+                final data = doc.data();
+                return {
+                  'book_id': data['book_id'],
+                  'chapter_id': data['chapter_id'],
+                  'book_name': bibleBooks.firstWhere(
+                    (book) => book['id'] == data['book_id'],
+                    orElse: () => {'name': data['book_id']},
+                  )['name'],
+                };
               })
           .toList();
     } catch (e) {
@@ -298,9 +309,9 @@ class BibleService {
     }
   }
 
-  // Sync local bookmarks with Supabase
+  // Sync local bookmarks with Firebase
   Future<void> syncBookmarks() async {
-    final user = supabase.auth.currentUser;
+    final user = _firebaseService.currentUser;
     if (user == null) return;
 
     try {
@@ -311,11 +322,13 @@ class BibleService {
       final verseBookmarks = prefs.getStringList('bible_verse_bookmarks') ?? [];
 
       // Fetch remote bookmarks
-      final remoteBookmarks = await supabase
-          .from('user_bookmarks')
-          .select('book_id, chapter_id, verse_id, bookmark_type')
-          .eq('user_id', user.id)
-          .eq('type', 'bible');
+      final querySnapshot = await _firestore
+          .collection('user_bookmarks')
+          .where('user_id', isEqualTo: user.uid)
+          .where('type', isEqualTo: 'bible')
+          .get();
+
+      final remoteBookmarks = querySnapshot.docs.map((doc) => doc.data()).toList();
 
       // Process chapter bookmarks
       for (final bookmark in chapterBookmarks) {
@@ -334,8 +347,8 @@ class BibleService {
 
         if (!exists) {
           // Add to remote
-          await supabase.from('user_bookmarks').insert({
-            'user_id': user.id,
+          await _firestore.collection('user_bookmarks').add({
+            'user_id': user.uid,
             'type': 'bible',
             'bookmark_type': 'bible_chapter',
             'book_id': bookId,
@@ -343,6 +356,7 @@ class BibleService {
             'verse_id': null,
             'verse_reference': '$bookId $chapterId',
             'title': 'Bible - $bookId $chapterId',
+            'created_at': Timestamp.now(),
           });
         }
       }
@@ -365,8 +379,8 @@ class BibleService {
 
         if (!exists) {
           // Add to remote
-          await supabase.from('user_bookmarks').insert({
-            'user_id': user.id,
+          await _firestore.collection('user_bookmarks').add({
+            'user_id': user.uid,
             'type': 'bible',
             'bookmark_type': 'bible_verse',
             'book_id': bookId,
@@ -374,6 +388,7 @@ class BibleService {
             'verse_id': verseId,
             'verse_reference': '$bookId $chapterId:$verseId',
             'title': 'Bible - $bookId $chapterId:$verseId',
+            'created_at': Timestamp.now(),
           });
         }
       }

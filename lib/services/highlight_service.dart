@@ -2,9 +2,10 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:alkitab_2_0/models/highlight_model.dart';
 import 'package:alkitab_2_0/constants/bible_data.dart';
+import 'package:alkitab_2_0/services/firebase_service.dart';
 
 class HighlightService {
   // Hive box name
@@ -85,8 +86,8 @@ class HighlightService {
     // Save to Hive
     await box.put(highlight.id, highlight.toJson());
 
-    // Try to sync with Supabase if user is logged in
-    _syncHighlightWithSupabase(highlight);
+    // Try to sync with Firebase if user is logged in
+    _syncHighlightWithFirebase(highlight);
 
     return highlight;
   }
@@ -106,38 +107,40 @@ class HighlightService {
     // Remove from Hive
     await box.delete(highlight.id);
 
-    // Try to remove from Supabase
-    _removeHighlightFromSupabase(highlight);
+    // Try to remove from Firebase
+    _removeHighlightFromFirebase(highlight);
   }
 
-  // Sync all local highlights with Supabase
+  // Sync all local highlights with Firebase
   static Future<void> syncAllHighlights() async {
-    final user = Supabase.instance.client.auth.currentUser;
+    final firebaseService = FirebaseService();
+    final user = firebaseService.currentUser;
     if (user == null) return;
 
     try {
       // Get all local highlights
       final localHighlights = await getAllHighlights();
 
-      // Get all remote highlights
-      final response = await Supabase.instance.client
-          .from('user_highlights')
-          .select()
-          .eq('user_id', user.id)
-          .eq('type', 'bible');
+      // Get all remote highlights from Firestore
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('user_highlights')
+          .where('user_id', isEqualTo: user.uid)
+          .where('type', isEqualTo: 'bible')
+          .get();
 
       // Process remote highlights
       final remoteHighlights = <HighlightModel>[];
-      for (final item in response) {
+      for (final doc in querySnapshot.docs) {
         try {
-          final bookId = item['book_id'] as String;
-          final chapterId = item['chapter_id'] as int;
-          final verseNumber = item['verse_id'] as int;
+          final data = doc.data();
+          final bookId = data['book_id'] as String;
+          final chapterId = data['chapter_id'] as int;
+          final verseNumber = data['verse_id'] as int;
           final colorHex =
-              item['color_hex'] as String? ?? HighlightColors.yellow;
-          final note = item['note'] as String?;
-          final createdAt = DateTime.parse(item['created_at']);
-          final id = item['id'] as String;
+              data['color_hex'] as String? ?? HighlightColors.yellow;
+          final note = data['note'] as String?;
+          final createdAt = (data['created_at'] as Timestamp).toDate();
+          final id = doc.id;
 
           remoteHighlights.add(HighlightModel(
             id: id,
@@ -160,38 +163,42 @@ class HighlightService {
     }
   }
 
-  // Private method to sync a highlight with Supabase
-  static Future<void> _syncHighlightWithSupabase(
+  // Private method to sync a highlight with Firebase
+  static Future<void> _syncHighlightWithFirebase(
       HighlightModel highlight) async {
-    final user = Supabase.instance.client.auth.currentUser;
+    final firebaseService = FirebaseService();
+    final user = firebaseService.currentUser;
     if (user == null) return;
 
     try {
       // Check if the highlight exists remotely
-      final response = await Supabase.instance.client
-          .from('user_highlights')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('book_id', highlight.bookId)
-          .eq('chapter_id', highlight.chapterId)
-          .eq('verse_id', highlight.verseNumber)
-          .maybeSingle();
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('user_highlights')
+          .where('user_id', isEqualTo: user.uid)
+          .where('book_id', isEqualTo: highlight.bookId)
+          .where('chapter_id', isEqualTo: highlight.chapterId)
+          .where('verse_id', isEqualTo: highlight.verseNumber)
+          .get();
 
       final bookName = getBookNameById(highlight.bookId);
       final verseReference =
           '$bookName ${highlight.chapterId}:${highlight.verseNumber}';
 
-      if (response != null) {
+      if (querySnapshot.docs.isNotEmpty) {
         // Update existing highlight
-        await Supabase.instance.client.from('user_highlights').update({
+        final docId = querySnapshot.docs.first.id;
+        await FirebaseFirestore.instance
+            .collection('user_highlights')
+            .doc(docId)
+            .update({
           'color_hex': highlight.colorHex,
           'note': highlight.note,
-          'updated_at': DateTime.now().toIso8601String(),
-        }).eq('id', response['id']);
+          'updated_at': Timestamp.now(),
+        });
       } else {
         // Create new highlight
-        await Supabase.instance.client.from('user_highlights').insert({
-          'user_id': user.id,
+        await FirebaseFirestore.instance.collection('user_highlights').add({
+          'user_id': user.uid,
           'book_id': highlight.bookId,
           'chapter_id': highlight.chapterId,
           'verse_id': highlight.verseNumber,
@@ -199,30 +206,35 @@ class HighlightService {
           'color_hex': highlight.colorHex,
           'note': highlight.note,
           'type': 'bible',
-          'created_at': highlight.createdAt.toIso8601String(),
+          'created_at': Timestamp.fromDate(highlight.createdAt),
         });
       }
     } catch (e) {
-      debugPrint('Error syncing highlight with Supabase: $e');
+      debugPrint('Error syncing highlight with Firebase: $e');
     }
   }
 
-  // Private method to remove a highlight from Supabase
-  static Future<void> _removeHighlightFromSupabase(
+  // Private method to remove a highlight from Firebase
+  static Future<void> _removeHighlightFromFirebase(
       HighlightModel highlight) async {
-    final user = Supabase.instance.client.auth.currentUser;
+    final firebaseService = FirebaseService();
+    final user = firebaseService.currentUser;
     if (user == null) return;
 
     try {
-      await Supabase.instance.client
-          .from('user_highlights')
-          .delete()
-          .eq('user_id', user.id)
-          .eq('book_id', highlight.bookId)
-          .eq('chapter_id', highlight.chapterId)
-          .eq('verse_id', highlight.verseNumber);
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('user_highlights')
+          .where('user_id', isEqualTo: user.uid)
+          .where('book_id', isEqualTo: highlight.bookId)
+          .where('chapter_id', isEqualTo: highlight.chapterId)
+          .where('verse_id', isEqualTo: highlight.verseNumber)
+          .get();
+
+      for (final doc in querySnapshot.docs) {
+        await doc.reference.delete();
+      }
     } catch (e) {
-      debugPrint('Error removing highlight from Supabase: $e');
+      debugPrint('Error removing highlight from Firebase: $e');
     }
   }
 

@@ -6,10 +6,11 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import '../../constants/bible_data.dart';
 import '../../services/mock_data_service.dart';
+import '../../services/auth_service.dart';
 
 class HomeTab extends StatefulWidget {
   const HomeTab({super.key});
@@ -92,17 +93,22 @@ class _HomeTabState extends State<HomeTab> {
     }
 
     try {
-      final storage = Supabase.instance.client.storage;
-      final files = await storage.from('devotional-readings').list(path: '');
+      final storage = FirebaseStorage.instance;
+      final listResult = await storage.ref('devotional-readings').listAll();
       final List<Map<String, dynamic>> combined = [];
 
-      for (final file in files) {
-        if (!file.name.endsWith('.json')) continue;
-        final res =
-            await storage.from('devotional-readings').download(file.name);
-        final jsonData = jsonDecode(utf8.decode(res));
-        if (jsonData is List) {
-          combined.addAll(jsonData.cast<Map<String, dynamic>>());
+      for (final item in listResult.items) {
+        if (!item.name.endsWith('.json')) continue;
+        try {
+          final data = await item.getData();
+          if (data != null) {
+            final jsonData = jsonDecode(utf8.decode(data));
+            if (jsonData is List) {
+              combined.addAll(jsonData.cast<Map<String, dynamic>>());
+            }
+          }
+        } catch (e) {
+          debugPrint('Error loading file ${item.name}: $e');
         }
       }
 
@@ -117,7 +123,7 @@ class _HomeTabState extends State<HomeTab> {
         return;
       }
     } catch (e) {
-      debugPrint('Error loading devotionals from Supabase: $e');
+      debugPrint('Error loading devotionals from Firebase: $e');
     }
 
     // Fallback to mock data
@@ -348,11 +354,10 @@ class _HomeTabState extends State<HomeTab> {
     final formattedDate = DateFormat.yMMMMd('ms').format(now);
     final dayName = DateFormat('EEEE', 'ms').format(now);
 
-    final user = Supabase.instance.client.auth.currentUser;
-    final displayName =
-        user?.userMetadata?['full_name'] ?? user?.email ?? "Guest";
+    final user = AuthService.currentUser;
+    final displayName = user?.displayName ?? user?.email ?? "Guest";
     final firstName = displayName.split(" ").first;
-    final profileUrl = user?.userMetadata?['profile_url'];
+    final profileUrl = user?.photoURL;
 
     return SliverAppBar(
       pinned: true,

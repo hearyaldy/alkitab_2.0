@@ -1,6 +1,5 @@
 // lib/services/note_service.dart
 
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
@@ -9,20 +8,22 @@ import 'dart:convert';
 import '../models/note_model.dart';
 import '../services/sync_queue_processor.dart';
 import '../services/connectivity_service.dart';
+import '../services/firebase_service.dart';
 import '../utils/offline_manager.dart';
 import '../utils/sync_conflict_resolver.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class NoteService {
   final SyncQueueProcessor _syncQueueProcessor;
   final ConnectivityService _connectivityService = ConnectivityService();
   final OfflineManager _offlineManager = OfflineManager();
   final Uuid _uuid = const Uuid();
+  final FirebaseService _firebaseService = FirebaseService();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   static const String _notesBoxName = 'notes';
 
   NoteService(this._syncQueueProcessor);
-
-  SupabaseClient get _supabase => Supabase.instance.client;
 
   Future<List<NoteModel>> getUserNotes({String? type}) async {
     final localNotes = await _getLocalNotes(type: type);
@@ -74,17 +75,18 @@ class NoteService {
 
   Future<List<NoteModel>> _getServerNotes({String? type}) async {
     try {
-      final user = _supabase.auth.currentUser;
+      final user = _firebaseService.currentUser;
       if (user == null) return [];
 
-      var query = _supabase.from('user_notes').select().eq('user_id', user.id);
+      Query query = _firestore.collection('user_notes').where('user_id', isEqualTo: user.uid);
       if (type != null) {
-        query = query.eq('note_type', type);
+        query = query.where('note_type', isEqualTo: type);
       }
 
-      final response = await query;
-      final notes =
-          response.map<NoteModel>((json) => NoteModel.fromJson(json)).toList();
+      final response = await query.get();
+      final notes = response.docs
+          .map<NoteModel>((doc) => NoteModel.fromJson({...doc.data() as Map<String, dynamic>, 'id': doc.id}))
+          .toList();
       await _offlineManager.updateContentTimestamp('notes');
 
       return notes;
@@ -118,8 +120,8 @@ class NoteService {
     String noteType = 'general',
     String? title,
   }) async {
-    final user = _supabase.auth.currentUser;
-    final userId = user?.id ?? 'offline_user';
+    final user = _firebaseService.currentUser;
+    final userId = user?.uid ?? 'offline_user';
     final noteId = _uuid.v4();
     final now = DateTime.now();
 
@@ -153,20 +155,16 @@ class NoteService {
 
     if (_connectivityService.isOnline && user != null) {
       try {
-        final response = await _supabase
-            .from('user_notes')
-            .upsert(noteData)
-            .select()
-            .single();
+        await _firestore.collection('user_notes').doc(noteId).set(noteData);
 
         if (!Hive.isBoxOpen(_notesBoxName)) {
           await Hive.openBox(_notesBoxName);
         }
         final box = Hive.box(_notesBoxName);
-        final updatedData = {...noteData, ...response, 'is_synced': true};
+        final updatedData = {...noteData, 'is_synced': true};
         await box.put(noteId, jsonEncode(updatedData));
 
-        return NoteModel.fromJson(response);
+        return NoteModel.fromJson(updatedData);
       } catch (e) {
         debugPrint('Server note add error: $e');
         await _syncQueueProcessor.addToQueue(
@@ -197,7 +195,7 @@ class NoteService {
 
     if (_connectivityService.isOnline) {
       try {
-        final user = _supabase.auth.currentUser;
+        final user = _firebaseService.currentUser;
         if (user == null) {
           await _syncQueueProcessor.addToQueue(
             type: SyncOperationType.note,
@@ -206,11 +204,10 @@ class NoteService {
           return true;
         }
 
-        await _supabase
-            .from('user_notes')
-            .delete()
-            .eq('id', noteId)
-            .eq('user_id', user.id);
+        await _firestore
+            .collection('user_notes')
+            .doc(noteId)
+            .delete();
 
         return true;
       } catch (e) {
@@ -291,7 +288,7 @@ class NoteService {
 
     if (_connectivityService.isOnline) {
       try {
-        final user = _supabase.auth.currentUser;
+        final user = _firebaseService.currentUser;
         if (user == null) {
           await _syncQueueProcessor.addToQueue(
             type: SyncOperationType.note,
@@ -300,22 +297,19 @@ class NoteService {
           return NoteModel.fromJson(updateData);
         }
 
-        final response = await _supabase
-            .from('user_notes')
-            .update(updateData)
-            .eq('id', id)
-            .eq('user_id', user.id)
-            .select()
-            .single();
+        await _firestore
+            .collection('user_notes')
+            .doc(id)
+            .update(updateData);
 
         if (!Hive.isBoxOpen(_notesBoxName)) {
           await Hive.openBox(_notesBoxName);
         }
         final box = Hive.box(_notesBoxName);
-        final updatedData = {...updateData, ...response, 'is_synced': true};
-        await box.put(id, jsonEncode(updatedData));
+        final finalUpdatedData = {...updateData, 'is_synced': true};
+        await box.put(id, jsonEncode(finalUpdatedData));
 
-        return NoteModel.fromJson(response);
+        return NoteModel.fromJson(finalUpdatedData);
       } catch (e) {
         debugPrint('Server note update error: $e');
         await _syncQueueProcessor.addToQueue(
@@ -349,15 +343,17 @@ class NoteService {
 
     if (_connectivityService.isOnline) {
       try {
-        final user = _supabase.auth.currentUser;
+        final user = _firebaseService.currentUser;
         if (user == null) return null;
 
-        final response = await _supabase
-            .from('user_notes')
-            .select()
-            .eq('id', noteId)
-            .eq('user_id', user.id)
-            .single();
+        final doc = await _firestore
+            .collection('user_notes')
+            .doc(noteId)
+            .get();
+
+        if (!doc.exists) return null;
+
+        final response = {...doc.data()! as Map<String, dynamic>, 'id': doc.id};
 
         if (!Hive.isBoxOpen(_notesBoxName)) {
           await Hive.openBox(_notesBoxName);
@@ -405,7 +401,7 @@ class NoteService {
   Future<void> processNoteSyncQueue() async {
     if (!_connectivityService.isOnline) return;
     try {
-      final user = _supabase.auth.currentUser;
+      final user = _firebaseService.currentUser;
       if (user == null) return;
       await _syncQueueProcessor.processQueue();
       await _offlineManager.updateContentTimestamp('notes');

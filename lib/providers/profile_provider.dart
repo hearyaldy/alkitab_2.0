@@ -1,15 +1,40 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/auth_service.dart';
+import '../services/user_service.dart';
 
 final profileAvatarProvider = FutureProvider<String?>((ref) async {
-  final user = Supabase.instance.client.auth.currentUser;
+  final user = AuthService.currentUser;
   if (user == null) return null;
 
-  final result = await Supabase.instance.client
-      .from('profiles')
-      .select('avatar_url')
-      .eq('id', user.id)
-      .maybeSingle();
+  final userService = UserService();
+  final profile = await userService.fetchUserProfile();
 
-  return result?['avatar_url'] as String?;
+  return profile?.profilePhotoUrl;
 });
+
+final userProfileProvider =
+    FutureProvider.family<UserProfile?, String>((ref, userId) async {
+  final userService = UserService();
+  final profile = await userService.fetchUserProfile();
+
+  if (profile == null) return null;
+
+  return UserProfile(
+    name: profile.displayName ?? '',
+    email: profile.email ?? '',
+  );
+});
+
+class UserProfile {
+  final String name;
+  final String email;
+
+  UserProfile({required this.name, required this.email});
+
+  factory UserProfile.fromJson(Map<String, dynamic> json) {
+    return UserProfile(
+      name: json['name'] ?? '',
+      email: json['email'] ?? '',
+    );
+  }
+}

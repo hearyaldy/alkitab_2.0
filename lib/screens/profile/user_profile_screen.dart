@@ -1,17 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../services/user_service.dart';
 
 final userProfileProvider =
     FutureProvider.family<UserProfile?, String>((ref, userId) async {
-  final data = await Supabase.instance.client
-      .from('profiles')
-      .select()
-      .eq('user_id', userId)
-      .maybeSingle();
+  final userService = UserService();
+  final profile = await userService.fetchUserProfile();
 
-  if (data == null) return null;
+  if (profile == null) return null;
 
-  return UserProfile.fromJson(data);
+  return UserProfile(
+    name: profile.displayName ?? '',
+    email: profile.email ?? '',
+  );
 });
 
 class UserProfile {

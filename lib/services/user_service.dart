@@ -1,31 +1,36 @@
 // lib/services/user_service.dart
 import 'dart:io';
 import 'dart:convert';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
+import 'firebase_service.dart';
 
 class UserService {
-  SupabaseClient get _supabase => Supabase.instance.client;
+  final FirebaseService _firebaseService = FirebaseService();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   Future<UserModel?> fetchUserProfile() async {
     try {
-      final user = _supabase.auth.currentUser;
+      final user = _firebaseService.currentUser;
       if (user == null) return null;
 
-      final response = await _supabase
-          .from('profiles')
-          .select()
-          .eq('user_id', user.id)
-          .single();
+      final doc = await _firestore.collection('profiles').doc(user.uid).get();
+
+      Map<String, dynamic> profileData = {};
+      if (doc.exists) {
+        profileData = doc.data() ?? {};
+      }
 
       return UserModel.fromJson({
-        ...response,
-        'id': user.id,
+        ...profileData,
+        'id': user.uid,
         'email': user.email,
-        'created_at': user.createdAt,
-        'profile_photo_url': user.userMetadata?['profile_photo_url'],
+        'created_at': user.metadata.creationTime,
+        'profile_photo_url': user.photoURL,
       });
     } catch (e) {
       debugPrint('Error fetching user profile: $e');
@@ -35,18 +40,16 @@ class UserService {
 
   Future<String?> uploadProfilePhoto(File imageFile) async {
     try {
-      final user = _supabase.auth.currentUser;
+      final user = _firebaseService.currentUser;
       if (user == null) return null;
 
-      final fileName = 'profile-images/profile_${user.id}.jpg';
+      final fileName = 'profile-images/profile_${user.uid}.jpg';
+      final ref = _storage.ref().child(fileName);
 
-      await _supabase.storage.from('profile-images').upload(fileName, imageFile,
-          fileOptions: const FileOptions(upsert: true));
+      await ref.putFile(imageFile);
+      final downloadUrl = await ref.getDownloadURL();
 
-      final publicUrl =
-          _supabase.storage.from('profile-images').getPublicUrl(fileName);
-
-      return publicUrl;
+      return downloadUrl;
     } catch (e) {
       debugPrint('Error uploading profile photo: $e');
       return null;
@@ -59,24 +62,30 @@ class UserService {
     String? profilePhotoUrl,
   }) async {
     try {
-      final user = _supabase.auth.currentUser;
+      final user = _firebaseService.currentUser;
       if (user == null) return null;
 
-      final userMetadata = <String, dynamic>{};
+      final profileData = <String, dynamic>{};
 
       if (displayName != null) {
-        userMetadata['display_name'] = displayName;
+        profileData['display_name'] = displayName;
+        await user.updateDisplayName(displayName);
       }
       if (preferredBibleVersion != null) {
-        userMetadata['preferred_bible_version'] = preferredBibleVersion;
+        profileData['preferred_bible_version'] = preferredBibleVersion;
       }
       if (profilePhotoUrl != null) {
-        userMetadata['profile_photo_url'] = profilePhotoUrl;
+        profileData['profile_photo_url'] = profilePhotoUrl;
+        await user.updatePhotoURL(profilePhotoUrl);
       }
 
-      await _supabase.auth.updateUser(
-        UserAttributes(data: userMetadata),
-      );
+      // Update Firestore profile
+      if (profileData.isNotEmpty) {
+        await _firestore.collection('profiles').doc(user.uid).set(
+          profileData,
+          SetOptions(merge: true),
+        );
+      }
 
       final prefs = await SharedPreferences.getInstance();
       if (displayName != null) {
@@ -101,7 +110,7 @@ class UserService {
     required int chapterId,
   }) async {
     try {
-      final user = _supabase.auth.currentUser;
+      final user = _firebaseService.currentUser;
       if (user == null) return;
 
       final prefs = await SharedPreferences.getInstance();
@@ -115,13 +124,13 @@ class UserService {
       await prefs.setString(
           'last_read_position', json.encode(lastReadPosition));
 
-      await _supabase.from('profiles').update({
+      await _firestore.collection('profiles').doc(user.uid).set({
         'last_read_position': {
           'book_id': bookId,
           'chapter_id': chapterId,
           'timestamp': DateTime.now().toIso8601String(),
         }
-      }).eq('user_id', user.id);
+      }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('Error saving last read position: $e');
     }
@@ -136,16 +145,14 @@ class UserService {
         return json.decode(lastReadPositionString);
       }
 
-      final user = _supabase.auth.currentUser;
+      final user = _firebaseService.currentUser;
       if (user == null) return null;
 
-      final response = await _supabase
-          .from('profiles')
-          .select('last_read_position')
-          .eq('user_id', user.id)
-          .single();
+      final doc = await _firestore.collection('profiles').doc(user.uid).get();
+      if (!doc.exists) return null;
 
-      return response['last_read_position'];
+      final data = doc.data();
+      return data?['last_read_position'];
     } catch (e) {
       debugPrint('Error retrieving last read position: $e');
       return null;
@@ -154,15 +161,22 @@ class UserService {
 
   Future<bool> deleteAccount() async {
     try {
-      final user = _supabase.auth.currentUser;
+      final user = _firebaseService.currentUser;
       if (user == null) return false;
 
-      await _supabase.from('profiles').delete().eq('user_id', user.id);
+      // Delete profile from Firestore
+      await _firestore.collection('profiles').doc(user.uid).delete();
 
-      final fileName = 'profile-images/profile_${user.id}.jpg';
-      await _supabase.storage.from('profile-images').remove([fileName]);
+      // Delete profile photo from Storage
+      try {
+        final fileName = 'profile-images/profile_${user.uid}.jpg';
+        await _storage.ref().child(fileName).delete();
+      } catch (e) {
+        debugPrint('Profile photo not found or error deleting: $e');
+      }
 
-      await _supabase.auth.admin.deleteUser(user.id);
+      // Delete user account
+      await user.delete();
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();

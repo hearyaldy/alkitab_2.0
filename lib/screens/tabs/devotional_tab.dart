@@ -2,12 +2,14 @@
 
 import 'dart:async'; // Import for Timer class
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models/devotional_model.dart';
 import '../../services/devotional_service.dart';
+import '../../services/bookmark_service.dart';
+import '../../services/sync_queue_processor.dart';
+import '../../services/auth_service.dart';
 
 class DevotionalTab extends StatefulWidget {
   const DevotionalTab({super.key});
@@ -34,10 +36,12 @@ class _DevotionalTabState extends State<DevotionalTab> {
   Set<String> _bookmarkedVerses = {};
 
   final DevotionalService _devotionalService = DevotionalService();
+  late final BookmarkService _bookmarkService;
 
   @override
   void initState() {
     super.initState();
+    _bookmarkService = BookmarkService(SyncQueueProcessor());
     _loadDevotionals();
     _loadBookmarkedVerses();
     _loadSavedNote();
@@ -94,21 +98,16 @@ class _DevotionalTabState extends State<DevotionalTab> {
   }
 
   Future<void> _loadBookmarkedVerses() async {
-    final user = Supabase.instance.client.auth.currentUser;
+    final user = AuthService.currentUser;
     if (user == null) return;
 
     try {
-      final response = await Supabase.instance.client
-          .from('user_bookmarks')
-          .select('verse_reference')
-          .eq('user_id', user.id)
-          .eq('bookmark_type', 'devotional');
-
+      final bookmarks = await _bookmarkService.getUserBookmarks(type: 'devotional');
       setState(() {
         _bookmarkedVerses = {
-          for (final item in response)
-            if (item['verse_reference'] != null)
-              item['verse_reference'] as String
+          for (final bookmark in bookmarks)
+            if (bookmark.verseReference != null)
+              bookmark.verseReference!
         };
       });
     } catch (e) {
@@ -117,7 +116,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
   }
 
   Future<void> _bookmarkDevotional(DevotionalModel devotional) async {
-    final user = Supabase.instance.client.auth.currentUser;
+    final user = AuthService.currentUser;
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('You must be logged in to bookmark.')),
@@ -128,37 +127,32 @@ class _DevotionalTabState extends State<DevotionalTab> {
     final verseRef = devotional.verseReference;
     if (verseRef == null || _bookmarkedVerses.contains(verseRef)) return;
 
-    final data = {
-      'user_id': user.id,
-      'verse_reference': verseRef,
-      'title': devotional.title,
-      // No content_id field since it doesn't exist in the table
-      'created_at': DateTime.now().toIso8601String(),
-      'bookmark_type': 'devotional',
-      'devotional_text': devotional.content, // Store the content
-      'prayer': devotional.prayer, // Store the prayer
-      'chapter_id': 0, // Required field
-      'book_id': '', // Required field
-      'verse_id': 0, // Required field
-      'type': 'devotional',
-    };
-
     try {
-      final response = await Supabase.instance.client
-          .from('user_bookmarks')
-          .insert(data)
-          .select();
+      final bookmark = await _bookmarkService.addBookmark(
+        title: devotional.title,
+        verseReference: verseRef,
+        bookmarkType: 'devotional',
+        type: 'devotional',
+        devotionalText: devotional.content,
+        prayer: devotional.prayer,
+        reflectionQuestions: devotional.reflectionQuestions.isNotEmpty
+            ? {'questions': devotional.reflectionQuestions}
+            : null,
+        bookId: '',
+        chapterId: 0,
+        verseId: 0,
+      );
 
-      if (response.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to bookmark devotional.')),
-        );
-      } else {
+      if (bookmark != null) {
         setState(() => _bookmarkedVerses.add(verseRef));
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Devotional bookmarked!')),
         );
         debugPrint('Bookmark inserted: $verseRef');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to bookmark devotional.')),
+        );
       }
     } catch (e) {
       debugPrint('Bookmark error: $e');

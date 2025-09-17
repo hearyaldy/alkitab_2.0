@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../services/auth_service.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -40,25 +41,43 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
         final password = _passwordController.text;
         final username = _usernameController.text.trim();
 
-        final response = await Supabase.instance.client.auth.signUp(
-          email: email,
-          password: password,
-          data: {
-            'full_name': username,
-          },
+        final credential = await AuthService.signUpWithEmailPassword(
+          email,
+          password,
+          username,
         );
 
-        if (response.user != null) {
+        if (credential != null) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Registration successful!')),
             );
             context.go('/home');
           }
+        } else {
+          setState(() {
+            _errorMessage = 'Registration failed. Please try again.';
+          });
         }
+      } on FirebaseAuthException catch (e) {
+        setState(() {
+          switch (e.code) {
+            case 'weak-password':
+              _errorMessage = 'The password provided is too weak.';
+              break;
+            case 'email-already-in-use':
+              _errorMessage = 'An account already exists for this email.';
+              break;
+            case 'invalid-email':
+              _errorMessage = 'Invalid email address.';
+              break;
+            default:
+              _errorMessage = e.message ?? 'An error occurred during registration.';
+          }
+        });
       } catch (e) {
         setState(() {
-          _errorMessage = e.toString();
+          _errorMessage = 'Unexpected error occurred. Please try again.';
         });
       } finally {
         if (mounted) {

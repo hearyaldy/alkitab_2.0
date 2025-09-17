@@ -98,7 +98,7 @@ class _DevotionalBookmarksListState extends State<DevotionalBookmarksList> {
   DevotionalModel? _findDevotionalById(String? id) {
     if (id == null) return null;
     try {
-      return devotionals.firstWhere((d) => d.id == id);
+      return widget.devotionals.firstWhere((d) => d.id == id);
     } catch (_) {
       return null;
     }
@@ -106,8 +106,8 @@ class _DevotionalBookmarksListState extends State<DevotionalBookmarksList> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: bookmarkFuture,
+    return StreamBuilder<QuerySnapshot>(
+      stream: _getBookmarksStream(),
       builder: (context, bookmarkSnapshot) {
         if (bookmarkSnapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -123,7 +123,7 @@ class _DevotionalBookmarksListState extends State<DevotionalBookmarksList> {
                 Text('Error: ${bookmarkSnapshot.error}'),
                 const SizedBox(height: 16),
                 ElevatedButton(
-                  onPressed: onRefresh,
+                  onPressed: widget.onRefresh,
                   child: const Text('Try Again'),
                 ),
               ],
@@ -131,7 +131,16 @@ class _DevotionalBookmarksListState extends State<DevotionalBookmarksList> {
           );
         }
 
-        final bookmarks = bookmarkSnapshot.data ?? [];
+        final snapshot = bookmarkSnapshot.data;
+        if (snapshot == null) {
+          return const Center(child: Text('No data available'));
+        }
+
+        final bookmarks = snapshot.docs.map((doc) => {
+          'id': doc.id,
+          ...doc.data() as Map<String, dynamic>
+        }).toList();
+
         final devotionalBookmarks = bookmarks
             .where((b) =>
                 b['type'] == 'devotional' || b['bookmark_type'] == 'devotional')
