@@ -7,6 +7,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
+import 'firebase_options.dart';
 import 'router.dart';
 import 'config/theme.dart';
 import 'providers/theme_provider.dart';
@@ -19,7 +20,17 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize Firebase
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // Initialize Firebase App Check - Temporarily disabled to fix API issues
+  // await FirebaseAppCheck.instance.activate(
+  //   // For Android: use the debug provider during development
+  //   androidProvider: AndroidProvider.debug,
+  //   // For iOS: use the debug provider during development
+  //   appleProvider: AppleProvider.debug,
+  // );
 
   // Initialize Hive
   await Hive.initFlutter();

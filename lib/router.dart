@@ -1,4 +1,5 @@
 import 'package:go_router/go_router.dart';
+import 'services/auth_service.dart';
 
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
@@ -11,12 +12,23 @@ import 'screens/tabs/profile_tab.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/bible/bible_reader_screen.dart';
 import 'screens/bookmarks/bookmarks_screen.dart';
+import 'screens/admin/data_migration_screen.dart';
 
 final router = GoRouter(
   initialLocation: '/home',
-  // Bypass authentication for mock data development
+  // Allow access to app without authentication, but track auth state
   redirect: (context, state) {
-    // Skip authentication check - allow all users to access the app
+    final isAuthenticated = AuthService.currentUser != null;
+    final isGoingToAuth = state.matchedLocation == '/login' ||
+                         state.matchedLocation == '/register' ||
+                         state.matchedLocation == '/reset-password';
+
+    // If user is authenticated and trying to go to auth pages, redirect to home
+    if (isAuthenticated && isGoingToAuth) {
+      return '/home';
+    }
+
+    // Allow all other navigation (app works without auth)
     return null;
   },
   routes: [
@@ -77,6 +89,10 @@ final router = GoRouter(
     GoRoute(
       path: '/settings',
       builder: (context, state) => const SettingsScreen(),
+    ),
+    GoRoute(
+      path: '/data-migration',
+      builder: (context, state) => const DataMigrationScreen(),
     ),
     GoRoute(
       path: '/bible-reader',

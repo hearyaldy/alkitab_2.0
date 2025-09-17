@@ -3,23 +3,25 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../constants/bible_data.dart';
 import '../../services/mock_data_service.dart';
 import '../../services/auth_service.dart';
 
-class HomeTab extends StatefulWidget {
+class HomeTab extends ConsumerStatefulWidget {
   const HomeTab({super.key});
 
   @override
-  State<HomeTab> createState() => _HomeTabState();
+  ConsumerState<HomeTab> createState() => _HomeTabState();
 }
 
-class _HomeTabState extends State<HomeTab> {
+class _HomeTabState extends ConsumerState<HomeTab> {
   late Future<void> _initializationFuture;
   final ImageProvider _headerImage =
       const AssetImage('assets/images/header_image.png');
@@ -36,6 +38,15 @@ class _HomeTabState extends State<HomeTab> {
   void initState() {
     super.initState();
     _initializationFuture = _initializeData();
+
+    // Listen to auth state changes to rebuild UI
+    AuthService.authStateChanges.listen((User? user) {
+      if (mounted) {
+        setState(() {
+          // Trigger rebuild when auth state changes
+        });
+      }
+    });
   }
 
   @override
@@ -401,25 +412,50 @@ class _HomeTabState extends State<HomeTab> {
             ),
             Padding(
               padding: const EdgeInsets.only(right: 16.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  CircleAvatar(
-                    radius: 16,
-                    backgroundImage:
-                        profileUrl != null ? NetworkImage(profileUrl) : null,
-                    backgroundColor: Colors.white,
-                    child: profileUrl == null
-                        ? const Icon(Icons.person,
-                            size: 16, color: Colors.indigo)
-                        : null,
-                  ),
-                  const SizedBox(height: 4),
-                  Text("Welcome, $firstName!",
-                      style: const TextStyle(fontSize: 8, color: Colors.white)),
-                ],
-              ),
+              child: user != null
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        CircleAvatar(
+                          radius: 16,
+                          backgroundImage:
+                              profileUrl != null ? NetworkImage(profileUrl) : null,
+                          backgroundColor: Colors.white,
+                          child: profileUrl == null
+                              ? const Icon(Icons.person,
+                                  size: 16, color: Colors.indigo)
+                              : null,
+                        ),
+                        const SizedBox(height: 4),
+                        Text("Welcome, $firstName!",
+                            style: const TextStyle(fontSize: 8, color: Colors.white)),
+                      ],
+                    )
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        GestureDetector(
+                          onTap: () => context.go('/login'),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.9),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Icon(
+                              Icons.login,
+                              size: 16,
+                              color: Colors.indigo,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text("Tap to Login",
+                            style: const TextStyle(fontSize: 8, color: Colors.white)),
+                      ],
+                    ),
             ),
           ],
         ),

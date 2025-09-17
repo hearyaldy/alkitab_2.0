@@ -16,7 +16,10 @@ class LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _showQuickReset = false;
+  bool _resetLoading = false;
   String? _errorMessage;
+  String? _resetMessage;
 
   @override
   void dispose() {
@@ -45,16 +48,26 @@ class LoginScreenState extends ConsumerState<LoginScreen> {
           return;
         }
 
-        final user = credential.user;
-        if (user != null && !user.emailVerified) {
-          setState(() {
-            _errorMessage = 'Email not verified. Please check your inbox.';
-          });
-          return;
-        }
+        // Add null safety and error handling
+        try {
+          final user = credential.user;
+          if (user != null && !user.emailVerified) {
+            setState(() {
+              _errorMessage = 'Email not verified. Please check your inbox.';
+            });
+            return;
+          }
 
-        if (mounted) {
-          context.go('/home');
+          if (mounted) {
+            context.go('/home');
+          }
+        } catch (userError) {
+          // Handle potential user property access errors
+          debugPrint('Error accessing user properties: $userError');
+          // Still navigate if we have a credential
+          if (mounted) {
+            context.go('/home');
+          }
         }
       } on FirebaseAuthException catch (e) {
         setState(() {
@@ -86,6 +99,49 @@ class LoginScreenState extends ConsumerState<LoginScreen> {
           });
         }
       }
+    }
+  }
+
+  Future<void> _quickResetPassword() async {
+    if (_emailController.text.trim().isEmpty) {
+      setState(() {
+        _resetMessage = 'Please enter your email address first.';
+      });
+      return;
+    }
+
+    setState(() {
+      _resetLoading = true;
+      _resetMessage = null;
+    });
+
+    try {
+      await AuthService.resetPassword(_emailController.text.trim());
+      if (mounted) {
+        setState(() {
+          _resetLoading = false;
+          _resetMessage = 'Password reset email sent! Check your inbox.';
+        });
+      }
+    } on FirebaseAuthException catch (e) {
+      String message;
+      switch (e.code) {
+        case 'user-not-found':
+          message = 'No user found with this email.';
+          break;
+        case 'invalid-email':
+          message = 'Please enter a valid email address.';
+          break;
+        case 'too-many-requests':
+          message = 'Too many requests. Try again later.';
+          break;
+        default:
+          message = 'Error sending reset email. Try again.';
+      }
+      setState(() {
+        _resetLoading = false;
+        _resetMessage = message;
+      });
     }
   }
 
@@ -143,12 +199,59 @@ class LoginScreenState extends ConsumerState<LoginScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () => context.go('/reset-password'),
-                    child: const Text('Forgot Password?'),
+                const SizedBox(height: 16),
+                Center(
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          TextButton(
+                            onPressed: _resetLoading ? null : _quickResetPassword,
+                            child: _resetLoading
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: const [
+                                      Icon(Icons.email, size: 16),
+                                      SizedBox(width: 4),
+                                      Text('Quick Reset'),
+                                    ],
+                                  ),
+                          ),
+                          const Text('|', style: TextStyle(color: Colors.grey)),
+                          TextButton(
+                            onPressed: () => context.go('/reset-password'),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                Icon(Icons.lock_reset, size: 16),
+                                SizedBox(width: 4),
+                                Text('Forgot Password?'),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_resetMessage != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            _resetMessage!,
+                            style: TextStyle(
+                              color: _resetMessage!.contains('sent')
+                                  ? Colors.green
+                                  : Theme.of(context).colorScheme.error,
+                              fontSize: 12,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 24),

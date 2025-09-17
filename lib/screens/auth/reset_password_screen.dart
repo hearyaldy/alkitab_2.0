@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../providers/auth_provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../services/auth_service.dart';
 
 class ResetPasswordScreen extends ConsumerStatefulWidget {
   const ResetPasswordScreen({super.key});
@@ -31,19 +32,36 @@ class ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
       });
 
       try {
-        await ref.read(authProvider.notifier).resetPassword(
-          _emailController.text.trim(),
-        );
-        
+        await AuthService.resetPassword(_emailController.text.trim());
+
         if (mounted) {
           setState(() {
             _resetSent = true;
             _isLoading = false;
           });
         }
+      } on FirebaseAuthException catch (e) {
+        String message;
+        switch (e.code) {
+          case 'user-not-found':
+            message = 'No user found with this email address.';
+            break;
+          case 'invalid-email':
+            message = 'Invalid email address.';
+            break;
+          case 'too-many-requests':
+            message = 'Too many password reset requests. Please try again later.';
+            break;
+          default:
+            message = e.message ?? 'An error occurred. Please try again.';
+        }
+        setState(() {
+          _errorMessage = message;
+          _isLoading = false;
+        });
       } catch (e) {
         setState(() {
-          _errorMessage = e.toString();
+          _errorMessage = 'An unexpected error occurred. Please try again.';
           _isLoading = false;
         });
       }

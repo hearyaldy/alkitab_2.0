@@ -28,9 +28,10 @@ class UserService {
       return UserModel.fromJson({
         ...profileData,
         'id': user.uid,
-        'email': user.email,
-        'created_at': user.metadata.creationTime,
-        'profile_photo_url': user.photoURL,
+        'email': user.email ?? '',
+        'created_at': user.metadata.creationTime?.toIso8601String() ?? DateTime.now().toIso8601String(),
+        'profile_photo_url': user.photoURL ?? profileData['profile_photo_url'],
+        'display_name': user.displayName ?? profileData['display_name'] ?? '',
       });
     } catch (e) {
       debugPrint('Error fetching user profile: $e');
@@ -69,14 +70,24 @@ class UserService {
 
       if (displayName != null) {
         profileData['display_name'] = displayName;
-        await user.updateDisplayName(displayName);
+        try {
+          await user.updateDisplayName(displayName);
+        } catch (e) {
+          debugPrint('Error updating display name: $e');
+          // Continue with Firestore update even if Firebase Auth update fails
+        }
       }
       if (preferredBibleVersion != null) {
         profileData['preferred_bible_version'] = preferredBibleVersion;
       }
       if (profilePhotoUrl != null) {
         profileData['profile_photo_url'] = profilePhotoUrl;
-        await user.updatePhotoURL(profilePhotoUrl);
+        try {
+          await user.updatePhotoURL(profilePhotoUrl);
+        } catch (e) {
+          debugPrint('Error updating photo URL: $e');
+          // Continue with Firestore update even if Firebase Auth update fails
+        }
       }
 
       // Update Firestore profile
