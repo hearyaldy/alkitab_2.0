@@ -43,7 +43,8 @@ class BibleService {
   }
 
   // Load Bible data from assets
-  Future<Map<String, dynamic>> _loadBibleFromAssets(String translationId) async {
+  Future<Map<String, dynamic>> _loadBibleFromAssets(
+      String translationId) async {
     if (_assetBibleCache.containsKey(translationId)) {
       return _assetBibleCache[translationId]!;
     }
@@ -135,7 +136,8 @@ class BibleService {
       final List<BibleVerse> result = [];
 
       for (final verseData in verses) {
-        if (verseData['book'] == bookNumber && verseData['chapter'] == chapterId) {
+        if (verseData['book'] == bookNumber &&
+            verseData['chapter'] == chapterId) {
           result.add(BibleVerse(
             id: verseData['verse'] ?? 1,
             bookId: bookId,
@@ -149,7 +151,8 @@ class BibleService {
       // Sort by verse number
       result.sort((a, b) => a.verseId.compareTo(b.verseId));
 
-      debugPrint('Loaded ${result.length} verses from assets for $bookId $chapterId');
+      debugPrint(
+          'Loaded ${result.length} verses from assets for $bookId $chapterId');
       return result;
     } catch (e) {
       debugPrint('Error loading verses from assets: $e');
@@ -220,7 +223,7 @@ class BibleService {
       final querySnapshot = await _firestore
           .collection('bible_verses')
           .where('text', isGreaterThanOrEqualTo: term)
-          .where('text', isLessThan: term + '\uf8ff')
+          .where('text', isLessThan: '$term\uf8ff')
           .limit(100)
           .get();
 
@@ -290,19 +293,17 @@ class BibleService {
           .orderBy('created_at', descending: true)
           .get();
 
-      return querySnapshot.docs
-          .map<Map<String, dynamic>>((doc) {
-                final data = doc.data();
-                return {
-                  'book_id': data['book_id'],
-                  'chapter_id': data['chapter_id'],
-                  'book_name': bibleBooks.firstWhere(
-                    (book) => book['id'] == data['book_id'],
-                    orElse: () => {'name': data['book_id']},
-                  )['name'],
-                };
-              })
-          .toList();
+      return querySnapshot.docs.map<Map<String, dynamic>>((doc) {
+        final data = doc.data();
+        return {
+          'book_id': data['book_id'],
+          'chapter_id': data['chapter_id'],
+          'book_name': bibleBooks.firstWhere(
+            (book) => book['id'] == data['book_id'],
+            orElse: () => {'name': data['book_id']},
+          )['name'],
+        };
+      }).toList();
     } catch (e) {
       debugPrint('Error fetching bookmarked chapters: $e');
       return [];
@@ -328,7 +329,8 @@ class BibleService {
           .where('type', isEqualTo: 'bible')
           .get();
 
-      final remoteBookmarks = querySnapshot.docs.map((doc) => doc.data()).toList();
+      final remoteBookmarks =
+          querySnapshot.docs.map((doc) => doc.data()).toList();
 
       // Process chapter bookmarks
       for (final bookmark in chapterBookmarks) {

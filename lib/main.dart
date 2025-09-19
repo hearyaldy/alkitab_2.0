@@ -13,6 +13,10 @@ import 'config/theme.dart';
 import 'providers/theme_provider.dart';
 import 'services/local_storage_service.dart';
 import 'services/mock_data_service.dart';
+import 'services/admin_service.dart';
+import 'services/sample_data_uploader.dart';
+import 'services/offline_cache_service.dart';
+import 'services/notification_service.dart';
 import 'models/bible_model.dart';
 import 'utils/offline_manager.dart';
 
@@ -53,12 +57,51 @@ Future<void> main() async {
       print('OfflineManager initialization failed: $e');
     }
 
+    try {
+      await OfflineCacheService().initialize().timeout(const Duration(seconds: 5));
+      print('OfflineCacheService initialized for offline-first caching.');
+    } catch (e) {
+      print('OfflineCacheService initialization failed: $e');
+    }
+
     await dotenv.load();
     await initializeDateFormatting('ms', null);
 
     // Initialize mock data service for offline development
     await MockDataService.initialize();
     print('Mock data service initialized for offline development.');
+
+    // Initialize admin service for superadmin setup
+    try {
+      await AdminService().initializeSuperadmin();
+      print('Admin service initialized.');
+    } catch (e) {
+      print('Admin service initialization failed: $e');
+    }
+
+    // Upload sample devotionals if database is empty
+    try {
+      await SampleDataUploader.uploadSampleDevotionals();
+      print('Sample devotionals checked/uploaded.');
+    } catch (e) {
+      print('Sample data upload failed: $e');
+    }
+
+    // Preload essential data for offline use
+    try {
+      await OfflineCacheService().preloadEssentialData();
+      print('Essential data preloaded for offline use.');
+    } catch (e) {
+      print('Essential data preload failed: $e');
+    }
+
+    // Initialize notification service
+    try {
+      await NotificationService().initialize();
+      print('Notification service initialized.');
+    } catch (e) {
+      print('Notification service initialization failed: $e');
+    }
 
     runApp(const ProviderScope(child: MyApp()));
   } catch (e) {

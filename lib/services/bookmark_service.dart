@@ -12,6 +12,7 @@ import '../services/sync_queue_processor.dart';
 import '../services/firebase_service.dart';
 import '../utils/offline_manager.dart';
 import '../utils/sync_conflict_resolver.dart';
+import 'offline_cache_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class BookmarkService {
@@ -21,6 +22,7 @@ class BookmarkService {
   final Uuid _uuid = const Uuid();
   final FirebaseService _firebaseService = FirebaseService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final OfflineCacheService _cacheService = OfflineCacheService();
 
   static const String _bookmarksBoxName = 'bookmarks';
 

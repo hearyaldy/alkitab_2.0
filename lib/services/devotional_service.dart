@@ -6,6 +6,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/devotional_model.dart';
 import 'mock_data_service.dart';
+import 'offline_cache_service.dart';
 
 class DevotionalService {
   static final DevotionalService _instance = DevotionalService._internal();
@@ -24,33 +25,24 @@ class DevotionalService {
   // Firebase instances
   final FirebaseStorage _storage = FirebaseStorage.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final OfflineCacheService _cacheService = OfflineCacheService();
 
-  // Get all devotionals
-  Future<List<DevotionalModel>> getAllDevotionals() async {
-    if (_cachedDevotionals.isNotEmpty &&
-        _lastLoaded != null &&
-        DateTime.now().difference(_lastLoaded!).inHours < 1) {
-      return _cachedDevotionals;
-    }
-
+  // Get all devotionals (offline-first approach)
+  Future<List<DevotionalModel>> getAllDevotionals({bool forceRefresh = false}) async {
     try {
-      // First try Firestore
-      final snapshot = await _firestore.collection('devotionals').get();
-      if (snapshot.docs.isNotEmpty) {
-        final devotionals = snapshot.docs
-            .map((doc) => DevotionalModel.fromJson(doc.data()))
-            .toList();
+      // Use offline-first caching
+      final devotionals = await _cacheService.getDevotionals(forceRefresh: forceRefresh);
 
+      if (devotionals.isNotEmpty) {
         _cachedDevotionals = devotionals;
         _lastLoaded = DateTime.now();
         return devotionals;
       }
 
-      // If Firestore is empty, try Firebase Storage
-      final ListResult result =
-          await _storage.ref('devotional-readings').listAll();
-
-      final List<DevotionalModel> devotionals = [];
+      // If cache service returns empty, try Firebase Storage as backup
+      debugPrint('Cache service returned empty, trying Firebase Storage...');
+      final ListResult result = await _storage.ref('devotional-readings').listAll();
+      final List<DevotionalModel> storageDevotionals = [];
 
       for (final ref in result.items) {
         if (!ref.name.endsWith('.json')) continue;
@@ -65,7 +57,7 @@ class DevotionalService {
           for (var item in parsed) {
             try {
               final devotional = DevotionalModel.fromJson(item);
-              devotionals.add(devotional);
+              storageDevotionals.add(devotional);
 
               // Store in Firestore for future reads
               await _firestore.collection('devotionals').doc(devotional.id).set(
@@ -79,16 +71,16 @@ class DevotionalService {
         }
       }
 
-      if (devotionals.isNotEmpty) {
-        _cachedDevotionals = devotionals;
+      if (storageDevotionals.isNotEmpty) {
+        _cachedDevotionals = storageDevotionals;
         _lastLoaded = DateTime.now();
-        return devotionals;
+        return storageDevotionals;
       }
     } catch (e) {
-      debugPrint('Failed to load devotionals from Firebase: $e');
+      debugPrint('Failed to load devotionals: $e');
     }
 
-    // Fallback to mock data if Firebase fails or returns empty
+    // Fallback to mock data if all else fails
     debugPrint('Using mock devotional data as fallback');
     await MockDataService.initialize();
     final mockDevotionals = MockDataService.getDevotionals();
@@ -193,7 +185,7 @@ class DevotionalService {
   Future<void> refreshCache() async {
     _cachedDevotionals = [];
     _lastLoaded = null;
-    await getAllDevotionals();
+    await getAllDevotionals(forceRefresh: true);
   }
 
   // Upload a new devotional
@@ -203,9 +195,39 @@ class DevotionalService {
           .collection('devotionals')
           .doc(devotional.id)
           .set(devotional.toJson());
+
+      // Invalidate cache to force refresh on next load
+      await _cacheService.invalidateCache('devotionals');
+      _cachedDevotionals = [];
+      _lastLoaded = null;
+
       return true;
     } catch (e) {
       debugPrint('Error uploading devotional: $e');
+      return false;
+    }
+  }
+
+  // Update a devotional
+  Future<bool> updateDevotional(DevotionalModel devotional) async {
+    try {
+      await _firestore
+          .collection('devotionals')
+          .doc(devotional.id)
+          .update(devotional.toJson());
+
+      // Update cached devotional if it exists
+      final index = _cachedDevotionals.indexWhere((d) => d.id == devotional.id);
+      if (index != -1) {
+        _cachedDevotionals[index] = devotional;
+      }
+
+      // Invalidate cache to force refresh on next load
+      await _cacheService.invalidateCache('devotionals');
+
+      return true;
+    } catch (e) {
+      debugPrint('Error updating devotional: $e');
       return false;
     }
   }
@@ -214,10 +236,63 @@ class DevotionalService {
   Future<bool> deleteDevotional(String id) async {
     try {
       await _firestore.collection('devotionals').doc(id).delete();
+
+      // Invalidate cache to force refresh on next load
+      await _cacheService.invalidateCache('devotionals');
       _cachedDevotionals.removeWhere((d) => d.id == id);
+      _lastLoaded = null;
+
       return true;
     } catch (e) {
       debugPrint('Error deleting devotional: $e');
+      return false;
+    }
+  }
+
+  // Bulk delete devotionals
+  Future<bool> bulkDeleteDevotionals(List<String> ids) async {
+    try {
+      final batch = _firestore.batch();
+      for (final id in ids) {
+        batch.delete(_firestore.collection('devotionals').doc(id));
+      }
+      await batch.commit();
+
+      // Update cache
+      _cachedDevotionals.removeWhere((d) => ids.contains(d.id));
+      await _cacheService.invalidateCache('devotionals');
+
+      return true;
+    } catch (e) {
+      debugPrint('Error bulk deleting devotionals: $e');
+      return false;
+    }
+  }
+
+  // Bulk update devotionals
+  Future<bool> bulkUpdateDevotionals(List<DevotionalModel> devotionals) async {
+    try {
+      final batch = _firestore.batch();
+      for (final devotional in devotionals) {
+        batch.update(
+          _firestore.collection('devotionals').doc(devotional.id),
+          devotional.toJson(),
+        );
+      }
+      await batch.commit();
+
+      // Update cache
+      for (final devotional in devotionals) {
+        final index = _cachedDevotionals.indexWhere((d) => d.id == devotional.id);
+        if (index != -1) {
+          _cachedDevotionals[index] = devotional;
+        }
+      }
+      await _cacheService.invalidateCache('devotionals');
+
+      return true;
+    } catch (e) {
+      debugPrint('Error bulk updating devotionals: $e');
       return false;
     }
   }

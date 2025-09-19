@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is superadmin
+    function isSuperadmin() {
+      return request.auth != null && request.auth.token.email == 'heary@hopetv.asia';
+    }
+
+    // Helper function to check if user is admin or superadmin
+    function isAdmin() {
+      return isSuperadmin() || (
+        request.auth != null &&
+        exists(/databases/$(database)/documents/user_roles/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/user_roles/$(request.auth.uid)).data.role in ['admin', 'superadmin']
+      );
+    }
+
+    // Helper function to check if user owns the document
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    // User roles collection - only superadmin can manage
+    match /user_roles/{userId} {
+      allow read: if isSuperadmin() || (request.auth != null && request.auth.uid == userId);
+      allow write: if isSuperadmin();
+    }
+
+    // Pending admin emails - superadmin can manage, users can check their own
+    match /pending_admin_emails/{email} {
+      allow read: if isSuperadmin() || (request.auth != null && request.auth.token.email == email);
+      allow write: if isSuperadmin();
+    }
+
+    // Devotionals collection - admins can manage, users can read
+    match /devotionals/{devotionalId} {
+      allow read: if true; // Anyone can read devotionals
+      allow create, update, delete: if isAdmin();
+    }
+
+    // User bookmarks - users can manage their own
+    match /user_bookmarks/{bookmarkId} {
+      allow read, write: if request.auth != null && (
+        resource.data.user_id == request.auth.uid ||
+        request.resource.data.user_id == request.auth.uid
+      );
+      allow delete: if request.auth != null && resource.data.user_id == request.auth.uid;
+    }
+
+    // User profiles - users can manage their own, superadmin can read all
+    match /profiles/{userId} {
+      allow read: if isOwner(userId) || isSuperadmin();
+      allow write: if isOwner(userId);
+    }
+
+    // Allow superadmin to list all profiles for user management
+    match /profiles/{document=**} {
+      allow read: if isSuperadmin();
+    }
+
+    // Notes collection - users can manage their own
+    match /user_notes/{noteId} {
+      allow read, write: if request.auth != null && (
+        resource.data.user_id == request.auth.uid ||
+        request.resource.data.user_id == request.auth.uid
+      );
+      allow delete: if request.auth != null && resource.data.user_id == request.auth.uid;
+    }
+
+    // Sync queue - users can manage their own
+    match /sync_queue/{queueId} {
+      allow read, write: if request.auth != null && (
+        resource.data.user_id == request.auth.uid ||
+        request.resource.data.user_id == request.auth.uid
+      );
+      allow delete: if request.auth != null && resource.data.user_id == request.auth.uid;
+    }
+
+    // Default deny all other collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

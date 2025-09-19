@@ -2,6 +2,7 @@ import 'package:alkitab_2_0/router.dart' as AppRouter;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'config/theme.dart';
+import 'providers/theme_provider.dart';
 import 'widgets/offline_indicator.dart'; // make sure this path is correct
 
 class MyApp extends ConsumerWidget {
@@ -9,11 +10,13 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeProvider);
+
     return MaterialApp.router(
       title: 'Alkitab 2.0',
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.system,
+      themeMode: themeMode,
       routerConfig: AppRouter.router,
       builder: (context, child) {
         return Stack(

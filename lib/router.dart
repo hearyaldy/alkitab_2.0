@@ -10,9 +10,16 @@ import 'screens/tabs/bible_tab.dart';
 import 'screens/tabs/devotional_tab.dart';
 import 'screens/tabs/profile_tab.dart';
 import 'screens/settings/settings_screen.dart';
+import 'screens/settings/notification_settings_screen.dart';
+import 'screens/devotional/devotional_search_screen.dart';
+import 'screens/progress/progress_dashboard_screen.dart';
+import 'screens/analytics/analytics_dashboard_screen.dart';
 import 'screens/bible/bible_reader_screen.dart';
 import 'screens/bookmarks/bookmarks_screen.dart';
 import 'screens/admin/data_migration_screen.dart';
+import 'screens/admin/devotional_admin_screen.dart';
+import 'screens/admin/enhanced_devotional_admin_screen.dart';
+import 'screens/admin/user_admin_screen.dart';
 
 final router = GoRouter(
   initialLocation: '/home',
@@ -91,6 +98,22 @@ final router = GoRouter(
       builder: (context, state) => const SettingsScreen(),
     ),
     GoRoute(
+      path: '/notification-settings',
+      builder: (context, state) => const NotificationSettingsScreen(),
+    ),
+    GoRoute(
+      path: '/devotional-search',
+      builder: (context, state) => const DevotionalSearchScreen(),
+    ),
+    GoRoute(
+      path: '/progress',
+      builder: (context, state) => const ProgressDashboardScreen(),
+    ),
+    GoRoute(
+      path: '/analytics',
+      builder: (context, state) => const AnalyticsDashboardScreen(),
+    ),
+    GoRoute(
       path: '/data-migration',
       builder: (context, state) => const DataMigrationScreen(),
     ),
@@ -112,6 +135,18 @@ final router = GoRouter(
     GoRoute(
       path: '/bookmarks',
       builder: (context, state) => const BookmarksScreen(),
+    ),
+    GoRoute(
+      path: '/admin/devotionals',
+      builder: (context, state) => const DevotionalAdminScreen(),
+    ),
+    GoRoute(
+      path: '/admin/users',
+      builder: (context, state) => const UserAdminScreen(),
+    ),
+    GoRoute(
+      path: '/admin/enhanced-devotionals',
+      builder: (context, state) => const EnhancedDevotionalAdminScreen(),
     ),
   ],
 );

@@ -2,14 +2,17 @@
 
 import 'dart:async'; // Import for Timer class
 import 'package:flutter/material.dart';
-import 'package:share_plus/share_plus.dart';
+import '../../services/sharing_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../widgets/enhanced_devotional_card.dart';
 
 import '../../models/devotional_model.dart';
 import '../../services/devotional_service.dart';
 import '../../services/bookmark_service.dart';
 import '../../services/sync_queue_processor.dart';
 import '../../services/auth_service.dart';
+import '../../services/admin_service.dart';
+import 'package:go_router/go_router.dart';
 
 class DevotionalTab extends StatefulWidget {
   const DevotionalTab({super.key});
@@ -25,13 +28,12 @@ class _DevotionalTabState extends State<DevotionalTab> {
   List<DevotionalModel> _allDevotionals = [];
   DevotionalModel? _todayDevotional;
 
-  final int _readingStreak =
-      3; // This would be dynamically calculated in a real app
   Timer? _autoSaveTimer; // Fixed: Declare as class property with proper type
 
-  final TextEditingController _notesController = TextEditingController();
+  final AdminService _adminService = AdminService();
+  bool _isAdmin = false;
 
-  final MaterialColor _themeColor = Colors.indigo;
+  final TextEditingController _notesController = TextEditingController();
 
   Set<String> _bookmarkedVerses = {};
 
@@ -45,6 +47,7 @@ class _DevotionalTabState extends State<DevotionalTab> {
     _loadDevotionals();
     _loadBookmarkedVerses();
     _loadSavedNote();
+    _checkAdminStatus();
 
     // Setup auto-save timer for notes
     _autoSaveTimer = Timer.periodic(const Duration(seconds: 30), (_) {
@@ -52,6 +55,15 @@ class _DevotionalTabState extends State<DevotionalTab> {
         _saveNote(_notesController.text);
       }
     });
+  }
+
+  Future<void> _checkAdminStatus() async {
+    final isAdmin = await _adminService.isAdmin;
+    if (mounted) {
+      setState(() {
+        _isAdmin = isAdmin;
+      });
+    }
   }
 
   @override
@@ -162,23 +174,6 @@ class _DevotionalTabState extends State<DevotionalTab> {
     }
   }
 
-  void _shareDevotional(DevotionalModel devotional) {
-    final title = devotional.title;
-    final verse = devotional.verseReference ?? '';
-    final text = devotional.content;
-    final prayer = devotional.prayer;
-
-    final content = '''
-$title
-$verse
-
-$text
-
-🙏 $prayer
-''';
-
-    SharePlus.instance.share(ShareParams(text: content, subject: title));
-  }
 
   void _showDevotionalDetails(DevotionalModel devotional) {
     showModalBottomSheet(
@@ -257,11 +252,23 @@ $text
                   'assets/images/header_image.png',
                   fit: BoxFit.cover, // Fixed: coverfit -> cover
                 ),
-                Container(color: Colors.black.withOpacity(0.5)),
+                Container(color: Colors.black.withValues(alpha: 0.5)),
               ],
             ),
           ),
           actions: [
+            IconButton(
+              icon: const Icon(Icons.search),
+              tooltip: 'Search devotionals',
+              onPressed: () => context.push('/devotional-search'),
+            ),
+            if (_isAdmin) ...[
+              IconButton(
+                icon: const Icon(Icons.admin_panel_settings),
+                tooltip: 'Devotional Admin',
+                onPressed: () => context.push('/admin/devotionals'),
+              ),
+            ],
             IconButton(
               icon: const Icon(Icons.refresh),
               tooltip: 'Refresh devotionals',
@@ -295,7 +302,13 @@ $text
               )
             else ...[
               if (_todayDevotional != null)
-                _buildTodayDevotion(_todayDevotional!),
+                EnhancedDevotionalCard(
+                  devotional: _todayDevotional!,
+                  isBookmarked: _bookmarkedVerses.contains(_todayDevotional!.verseReference),
+                  onBookmark: () => _bookmarkDevotional(_todayDevotional!),
+                  notesController: _notesController,
+                  onNoteChanged: _saveNote,
+                ),
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16.0),
                 child: Text(
@@ -329,133 +342,4 @@ $text
     );
   }
 
-  Widget _buildTodayDevotion(DevotionalModel devo) {
-    final now = DateTime.now();
-    final dateString = '${now.month}/${now.day}/${now.year}';
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Card(
-        margin: const EdgeInsets.only(bottom: 16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Streak: $_readingStreak days',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontStyle: FontStyle.italic,
-                      color: Colors.orange[800],
-                    ),
-                  ),
-                  Text(
-                    dateString,
-                    style: TextStyle(color: Colors.grey[600], fontSize: 14),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                devo.title,
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: _themeColor,
-                ),
-              ),
-              const SizedBox(height: 8),
-              if (devo.verseText != null)
-                Text(
-                  devo.verseText!,
-                  style: const TextStyle(
-                      fontSize: 16, fontStyle: FontStyle.italic),
-                ),
-              const SizedBox(height: 4),
-              if (devo.verseReference != null)
-                Text(
-                  devo.verseReference!,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: _themeColor.shade700,
-                  ),
-                ),
-              const SizedBox(height: 16),
-              Text(
-                devo.content,
-                style: const TextStyle(fontSize: 16, height: 1.5),
-              ),
-              const SizedBox(height: 24),
-              if (devo.reflectionQuestions.isNotEmpty) ...[
-                const Text(
-                  'Reflection Questions:',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  devo.reflectionQuestions.map((q) => '• $q').join('\n\n'),
-                  style: const TextStyle(fontSize: 15, height: 1.5),
-                ),
-                const SizedBox(height: 20),
-              ],
-              const Text(
-                'Prayer:',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                devo.prayer,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontStyle: FontStyle.italic,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'My Notes:',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 6),
-              TextField(
-                controller: _notesController,
-                maxLines: 3,
-                onChanged: _saveNote,
-                decoration: InputDecoration(
-                  hintText: 'Write your thoughts or prayer here...',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  IconButton(
-                    icon: Icon(
-                      _bookmarkedVerses.contains(devo.verseReference)
-                          ? Icons.bookmark
-                          : Icons.bookmark_border,
-                    ),
-                    tooltip: 'Bookmark this Devotional',
-                    onPressed: () => _bookmarkDevotional(devo),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.share),
-                    tooltip: 'Share Devotional',
-                    onPressed: () => _shareDevotional(devo),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }

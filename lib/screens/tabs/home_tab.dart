@@ -13,6 +13,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../constants/bible_data.dart';
 import '../../services/mock_data_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/lazy_loading_service.dart';
+import '../../widgets/encouragement_widget.dart';
 
 class HomeTab extends ConsumerStatefulWidget {
   const HomeTab({super.key});
@@ -31,8 +33,6 @@ class _HomeTabState extends ConsumerState<HomeTab> {
   List<Map<String, dynamic>> _recentReadings = [];
   Map<String, dynamic>? _bibleData;
   int _totalVerses = 0;
-  String _randomVerse = '';
-  String _randomVerseRef = '';
 
   @override
   void initState() {
@@ -68,13 +68,6 @@ class _HomeTabState extends ConsumerState<HomeTab> {
 
       final List<dynamic> verses = _bibleData?['verses'] ?? [];
       _totalVerses = verses.length;
-
-      // Get random verse for today
-      final now = DateTime.now();
-      final randomIndex = (now.day + now.month + now.year) % verses.length;
-      final randomVerseData = verses[randomIndex];
-      _randomVerse = randomVerseData['text'] ?? '';
-      _randomVerseRef = '${randomVerseData['book_name']} ${randomVerseData['chapter']}:${randomVerseData['verse']}';
 
       debugPrint('Loaded Bible data: $_totalVerses verses');
     } catch (e) {
@@ -475,13 +468,15 @@ class _HomeTabState extends ConsumerState<HomeTab> {
       children: [
         // Search field under header
         _buildSearchField(),
+
+        // Encouragement widget
+        const EncouragementWidget(),
+
         Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _verseOfDayCard(),
-              const SizedBox(height: 24),
               _bibleStatsCard(),
               const SizedBox(height: 24),
               _bibleBooksSection(),
@@ -499,17 +494,13 @@ class _HomeTabState extends ConsumerState<HomeTab> {
   Widget _buildSearchField() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(25),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.grey.shade300,
+          width: 1,
+        ),
       ),
       child: TextField(
         onSubmitted: (query) => _performSearch(query),
@@ -517,6 +508,10 @@ class _HomeTabState extends ConsumerState<HomeTab> {
           hintText: 'Cari ayat Alkitab atau kata...',
           hintStyle: TextStyle(color: Colors.grey[500]),
           prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           suffixIcon: PopupMenuButton<String>(
             icon: Icon(Icons.filter_list, color: Colors.grey[600]),
             onSelected: (value) {
@@ -555,130 +550,11 @@ class _HomeTabState extends ConsumerState<HomeTab> {
               ),
             ],
           ),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 12),
         ),
       ),
     );
   }
 
-  Widget _verseOfDayCard() {
-    return Card(
-      elevation: 8,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              const Color(0xFF4A90E2), // Beautiful blue
-              const Color(0xFF357ABD), // Deeper blue
-              const Color(0xFF2E6BA6), // Even deeper blue
-            ],
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.auto_stories,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text(
-                      'Ayat Hari Ini',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.share, color: Colors.white),
-                      tooltip: 'Share verse',
-                      onPressed: () {
-                        final verse = _randomVerse.isNotEmpty ? _randomVerse : _todayDevo?['verse_text'] ?? '';
-                        final reference = _randomVerseRef.isNotEmpty ? _randomVerseRef : _todayDevo?['verse_reference'] ?? '';
-                        final content = '"$verse"\n\n📖 $reference\n\nDibagikan dari Alkitab 2.0';
-                        SharePlus.instance.share(ShareParams(text: content, subject: 'Ayat Hari Ini'));
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.3),
-                    width: 1,
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '"${_randomVerse.isNotEmpty ? _randomVerse : _todayDevo?['verse_text'] ?? 'Memuat ayat...'}"',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontStyle: FontStyle.italic,
-                        color: Colors.white,
-                        height: 1.5,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.9),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          _randomVerseRef.isNotEmpty ? _randomVerseRef : _todayDevo?['verse_reference'] ?? '',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF2E6BA6),
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _bibleStatsCard() {
     return Card(

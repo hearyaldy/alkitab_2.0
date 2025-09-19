@@ -11,6 +11,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/profile_photo_provider.dart';
 import '../../services/auth_service.dart';
 import '../../services/user_service.dart';
+import '../../services/admin_service.dart';
+import '../../widgets/admin/simple_user_admin.dart';
 
 class ProfileTab extends ConsumerStatefulWidget {
   const ProfileTab({super.key});
@@ -27,6 +29,8 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   final String _lastPasswordChange = 'Not available';
   String? _photoUrl;
   final UserService _userService = UserService();
+  final AdminService _adminService = AdminService();
+  bool _isAdmin = false;
 
   User? get user => AuthService.currentUser;
 
@@ -37,6 +41,17 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     _emailController = TextEditingController(text: user?.email ?? '');
     _photoUrl = user?.photoURL;
     _lastLogin = user?.metadata.lastSignInTime?.toString() ?? 'Not available';
+    _checkAdminStatus();
+  }
+
+  Future<void> _checkAdminStatus() async {
+    if (user != null) {
+      await _adminService.initializeSuperadmin();
+      final isAdmin = await _adminService.isAdmin;
+      setState(() {
+        _isAdmin = isAdmin;
+      });
+    }
   }
 
   @override
@@ -410,12 +425,89 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
             child: const Text('Change Password'),
           ),
           const SizedBox(height: 16),
+          if (_isAdmin) ...[
+            ElevatedButton(
+              onPressed: () => context.push('/admin/devotionals'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purple,
+                foregroundColor: Colors.white,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.admin_panel_settings, size: 20),
+                  const SizedBox(width: 8),
+                  Text(_adminService.isSuperadmin ? 'Devotional Admin (Super)' : 'Devotional Admin'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (_adminService.isSuperadmin) ...[
+              ElevatedButton(
+                onPressed: () => context.push('/admin/users'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.people, size: 20),
+                    SizedBox(width: 8),
+                    Text('User Management (Super)'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            const SizedBox(height: 8),
+          ],
+          // Progress Dashboard Button
+          ElevatedButton(
+            onPressed: () => context.push('/progress'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.trending_up, size: 20),
+                SizedBox(width: 8),
+                Text('My Progress'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Notification Settings Button
+          ElevatedButton(
+            onPressed: () => context.push('/notification-settings'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.notifications, size: 20),
+                SizedBox(width: 8),
+                Text('Notification Settings'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           ElevatedButton(
             onPressed: _confirmLogout,
             style:
                 ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Logout'),
           ),
+
+          // User admin widget for superadmin
+          if (_adminService.isSuperadmin) ...[
+            const SizedBox(height: 24),
+            const SimpleUserAdminWidget(),
+          ],
         ],
       ),
     );

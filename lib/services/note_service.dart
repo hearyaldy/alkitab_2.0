@@ -78,14 +78,17 @@ class NoteService {
       final user = _firebaseService.currentUser;
       if (user == null) return [];
 
-      Query query = _firestore.collection('user_notes').where('user_id', isEqualTo: user.uid);
+      Query query = _firestore
+          .collection('user_notes')
+          .where('user_id', isEqualTo: user.uid);
       if (type != null) {
         query = query.where('note_type', isEqualTo: type);
       }
 
       final response = await query.get();
       final notes = response.docs
-          .map<NoteModel>((doc) => NoteModel.fromJson({...doc.data() as Map<String, dynamic>, 'id': doc.id}))
+          .map<NoteModel>((doc) => NoteModel.fromJson(
+              {...doc.data() as Map<String, dynamic>, 'id': doc.id}))
           .toList();
       await _offlineManager.updateContentTimestamp('notes');
 
@@ -204,10 +207,7 @@ class NoteService {
           return true;
         }
 
-        await _firestore
-            .collection('user_notes')
-            .doc(noteId)
-            .delete();
+        await _firestore.collection('user_notes').doc(noteId).delete();
 
         return true;
       } catch (e) {
@@ -297,10 +297,7 @@ class NoteService {
           return NoteModel.fromJson(updateData);
         }
 
-        await _firestore
-            .collection('user_notes')
-            .doc(id)
-            .update(updateData);
+        await _firestore.collection('user_notes').doc(id).update(updateData);
 
         if (!Hive.isBoxOpen(_notesBoxName)) {
           await Hive.openBox(_notesBoxName);
@@ -346,14 +343,11 @@ class NoteService {
         final user = _firebaseService.currentUser;
         if (user == null) return null;
 
-        final doc = await _firestore
-            .collection('user_notes')
-            .doc(noteId)
-            .get();
+        final doc = await _firestore.collection('user_notes').doc(noteId).get();
 
         if (!doc.exists) return null;
 
-        final response = {...doc.data()! as Map<String, dynamic>, 'id': doc.id};
+        final response = {...doc.data()!, 'id': doc.id};
 
         if (!Hive.isBoxOpen(_notesBoxName)) {
           await Hive.openBox(_notesBoxName);
