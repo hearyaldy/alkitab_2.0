@@ -2,7 +2,6 @@
 
 import 'dart:async'; // Import for Timer class
 import 'package:flutter/material.dart';
-import '../../services/sharing_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../widgets/enhanced_devotional_card.dart';
 
@@ -114,12 +113,12 @@ class _DevotionalTabState extends State<DevotionalTab> {
     if (user == null) return;
 
     try {
-      final bookmarks = await _bookmarkService.getUserBookmarks(type: 'devotional');
+      final bookmarks =
+          await _bookmarkService.getUserBookmarks(type: 'devotional');
       setState(() {
         _bookmarkedVerses = {
           for (final bookmark in bookmarks)
-            if (bookmark.verseReference != null)
-              bookmark.verseReference!
+            if (bookmark.verseReference != null) bookmark.verseReference!
         };
       });
     } catch (e) {
@@ -173,7 +172,6 @@ class _DevotionalTabState extends State<DevotionalTab> {
       );
     }
   }
-
 
   void _showDevotionalDetails(DevotionalModel devotional) {
     showModalBottomSheet(
@@ -304,7 +302,8 @@ class _DevotionalTabState extends State<DevotionalTab> {
               if (_todayDevotional != null)
                 EnhancedDevotionalCard(
                   devotional: _todayDevotional!,
-                  isBookmarked: _bookmarkedVerses.contains(_todayDevotional!.verseReference),
+                  isBookmarked: _bookmarkedVerses
+                      .contains(_todayDevotional!.verseReference),
                   onBookmark: () => _bookmarkDevotional(_todayDevotional!),
                   notesController: _notesController,
                   onNoteChanged: _saveNote,
@@ -341,5 +340,4 @@ class _DevotionalTabState extends State<DevotionalTab> {
       ],
     );
   }
-
 }

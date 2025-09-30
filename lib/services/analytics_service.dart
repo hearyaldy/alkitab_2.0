@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'dart:convert';
 import '../services/auth_service.dart';
 import '../services/devotional_service.dart';
 import '../services/progress_tracking_service.dart';
@@ -109,9 +108,8 @@ class AnalyticsService {
         }
       }
 
-      final popularTopics = topics.entries
-          .toList()
-          ..sort((a, b) => b.value.compareTo(a.value));
+      final popularTopics = topics.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
 
       return ContentAnalytics(
         totalDevotionals: totalDevotionals,
@@ -166,7 +164,8 @@ class AnalyticsService {
     return List.generate(7, (index) => now.subtract(Duration(days: index)));
   }
 
-  Future<Map<String, int>> _getContentDistribution(List<dynamic> devotionals) async {
+  Future<Map<String, int>> _getContentDistribution(
+      List<dynamic> devotionals) async {
     final distribution = <String, int>{};
 
     for (final devotional in devotionals) {
@@ -209,8 +208,18 @@ class AnalyticsService {
 
   String _getMonthName(int month) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
     ];
     return months[month - 1];
   }
@@ -245,8 +254,16 @@ class AnalyticsService {
   Future<Map<int, int>> _getPreferredReadingTimes() async {
     // Hour of day -> frequency
     return {
-      6: 15, 7: 25, 8: 35, 9: 20, 10: 10,
-      18: 30, 19: 40, 20: 45, 21: 35, 22: 20,
+      6: 15,
+      7: 25,
+      8: 35,
+      9: 20,
+      10: 10,
+      18: 30,
+      19: 40,
+      20: 45,
+      21: 35,
+      22: 20,
     };
   }
 
@@ -264,7 +281,20 @@ class AnalyticsService {
 
   Future<List<bool>> _getGoalAchievementHistory() async {
     // Last 12 weeks of goal achievement
-    return [true, true, false, true, true, true, false, true, true, false, true, true];
+    return [
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true
+    ];
   }
 
   // Export analytics data

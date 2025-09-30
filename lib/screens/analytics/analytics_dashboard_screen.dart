@@ -7,10 +7,12 @@ class AnalyticsDashboardScreen extends ConsumerStatefulWidget {
   const AnalyticsDashboardScreen({super.key});
 
   @override
-  ConsumerState<AnalyticsDashboardScreen> createState() => _AnalyticsDashboardScreenState();
+  ConsumerState<AnalyticsDashboardScreen> createState() =>
+      _AnalyticsDashboardScreenState();
 }
 
-class _AnalyticsDashboardScreenState extends ConsumerState<AnalyticsDashboardScreen>
+class _AnalyticsDashboardScreenState
+    extends ConsumerState<AnalyticsDashboardScreen>
     with SingleTickerProviderStateMixin {
   final AnalyticsService _analyticsService = AnalyticsService();
   late TabController _tabController;
@@ -69,7 +71,8 @@ class _AnalyticsDashboardScreenState extends ConsumerState<AnalyticsDashboardScr
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Analytics Export'),
-            content: const Text('Analytics data exported successfully!\n\nIn a production app, this would be saved to a file or emailed to you.'),
+            content: const Text(
+                'Analytics data exported successfully!\n\nIn a production app, this would be saved to a file or emailed to you.'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
@@ -423,7 +426,8 @@ class _AnalyticsDashboardScreenState extends ConsumerState<AnalyticsDashboardScr
     );
   }
 
-  Widget _buildContentInsightsCard(ContentAnalytics analytics, ThemeData theme) {
+  Widget _buildContentInsightsCard(
+      ContentAnalytics analytics, ThemeData theme) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -483,10 +487,14 @@ class _AnalyticsDashboardScreenState extends ConsumerState<AnalyticsDashboardScr
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: analytics.popularTopics.take(5).map((topic) => Chip(
-                label: Text(topic),
-                backgroundColor: theme.primaryColor.withValues(alpha: 0.1),
-              )).toList(),
+              children: analytics.popularTopics
+                  .take(5)
+                  .map((topic) => Chip(
+                        label: Text(topic),
+                        backgroundColor:
+                            theme.primaryColor.withValues(alpha: 0.1),
+                      ))
+                  .toList(),
             ),
           ],
         ],
@@ -532,10 +540,18 @@ class _AnalyticsDashboardScreenState extends ConsumerState<AnalyticsDashboardScr
             mainAxisSpacing: 16,
             childAspectRatio: 2,
             children: [
-              _buildEngagementStat('Shares', '${analytics.shareCount}', Icons.share),
-              _buildEngagementStat('Bookmarks', '${analytics.bookmarkCount}', Icons.bookmark),
-              _buildEngagementStat('Retention', '${(analytics.retentionRate * 100).toInt()}%', Icons.trending_up),
-              _buildEngagementStat('Session', '${analytics.averageSessionDuration.inMinutes}m', Icons.timer),
+              _buildEngagementStat(
+                  'Shares', '${analytics.shareCount}', Icons.share),
+              _buildEngagementStat(
+                  'Bookmarks', '${analytics.bookmarkCount}', Icons.bookmark),
+              _buildEngagementStat(
+                  'Retention',
+                  '${(analytics.retentionRate * 100).toInt()}%',
+                  Icons.trending_up),
+              _buildEngagementStat(
+                  'Session',
+                  '${analytics.averageSessionDuration.inMinutes}m',
+                  Icons.timer),
             ],
           ),
         ],
@@ -669,21 +685,25 @@ class _AnalyticsDashboardScreenState extends ConsumerState<AnalyticsDashboardScr
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: topics.map((topic) => Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: theme.primaryColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: theme.primaryColor.withValues(alpha: 0.3)),
-              ),
-              child: Text(
-                topic,
-                style: TextStyle(
-                  color: theme.primaryColor,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            )).toList(),
+            children: topics
+                .map((topic) => Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: theme.primaryColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                            color: theme.primaryColor.withValues(alpha: 0.3)),
+                      ),
+                      child: Text(
+                        topic,
+                        style: TextStyle(
+                          color: theme.primaryColor,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ))
+                .toList(),
           ),
         ],
       ),
@@ -751,7 +771,8 @@ class _AnalyticsDashboardScreenState extends ConsumerState<AnalyticsDashboardScr
   }
 
   Widget _buildReadingTimesCard(Map<int, int> times, ThemeData theme) {
-    final maxFreq = times.values.isEmpty ? 1 : times.values.reduce((a, b) => a > b ? a : b);
+    final maxFreq =
+        times.values.isEmpty ? 1 : times.values.reduce((a, b) => a > b ? a : b);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -793,7 +814,7 @@ class _AnalyticsDashboardScreenState extends ConsumerState<AnalyticsDashboardScr
                 children: [
                   SizedBox(
                     width: 60,
-                    child: Text('${hour}:00'),
+                    child: Text('$hour:00'),
                   ),
                   Expanded(
                     child: LinearProgressIndicator(
@@ -807,14 +828,16 @@ class _AnalyticsDashboardScreenState extends ConsumerState<AnalyticsDashboardScr
                 ],
               ),
             );
-          }).toList(),
+          }),
         ],
       ),
     );
   }
 
   Widget _buildWeeklyPatternCard(Map<String, int> pattern, ThemeData theme) {
-    final maxValue = pattern.values.isEmpty ? 1 : pattern.values.reduce((a, b) => a > b ? a : b);
+    final maxValue = pattern.values.isEmpty
+        ? 1
+        : pattern.values.reduce((a, b) => a > b ? a : b);
 
     return Container(
       padding: const EdgeInsets.all(20),

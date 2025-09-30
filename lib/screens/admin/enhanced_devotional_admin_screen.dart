@@ -13,10 +13,12 @@ class EnhancedDevotionalAdminScreen extends StatefulWidget {
   const EnhancedDevotionalAdminScreen({super.key});
 
   @override
-  State<EnhancedDevotionalAdminScreen> createState() => _EnhancedDevotionalAdminScreenState();
+  State<EnhancedDevotionalAdminScreen> createState() =>
+      _EnhancedDevotionalAdminScreenState();
 }
 
-class _EnhancedDevotionalAdminScreenState extends State<EnhancedDevotionalAdminScreen> {
+class _EnhancedDevotionalAdminScreenState
+    extends State<EnhancedDevotionalAdminScreen> {
   final DevotionalService _devotionalService = DevotionalService();
   final AdminService _adminService = AdminService();
   final Uuid _uuid = const Uuid();
@@ -54,7 +56,8 @@ class _EnhancedDevotionalAdminScreenState extends State<EnhancedDevotionalAdminS
     if (!isAdmin) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Access denied. Admin privileges required.')),
+          const SnackBar(
+              content: Text('Access denied. Admin privileges required.')),
         );
         context.go('/');
       }
@@ -107,9 +110,13 @@ class _EnhancedDevotionalAdminScreenState extends State<EnhancedDevotionalAdminS
       } else {
         _filteredDevotionals = _devotionals.where((devotional) {
           return devotional.title.toLowerCase().contains(query.toLowerCase()) ||
-                 devotional.content.toLowerCase().contains(query.toLowerCase()) ||
-                 (devotional.verseReference?.toLowerCase().contains(query.toLowerCase()) ?? false) ||
-                 (devotional.author?.toLowerCase().contains(query.toLowerCase()) ?? false);
+              devotional.content.toLowerCase().contains(query.toLowerCase()) ||
+              (devotional.verseReference
+                      ?.toLowerCase()
+                      .contains(query.toLowerCase()) ??
+                  false) ||
+              (devotional.author?.toLowerCase().contains(query.toLowerCase()) ??
+                  false);
         }).toList();
       }
 
@@ -142,7 +149,8 @@ class _EnhancedDevotionalAdminScreenState extends State<EnhancedDevotionalAdminS
     setState(() {
       _selectAll = !_selectAll;
       if (_selectAll) {
-        _selectedDevotionals = _filteredDevotionals.map((d) => d.id ?? d.title).toSet();
+        _selectedDevotionals =
+            _filteredDevotionals.map((d) => d.id ?? d.title).toSet();
       } else {
         _selectedDevotionals.clear();
       }
@@ -167,7 +175,8 @@ class _EnhancedDevotionalAdminScreenState extends State<EnhancedDevotionalAdminS
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Confirm Bulk Delete'),
-        content: Text('Are you sure you want to delete ${_selectedDevotionals.length} selected devotionals?'),
+        content: Text(
+            'Are you sure you want to delete ${_selectedDevotionals.length} selected devotionals?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -185,8 +194,10 @@ class _EnhancedDevotionalAdminScreenState extends State<EnhancedDevotionalAdminS
     if (confirmed == true) {
       try {
         for (final id in _selectedDevotionals) {
-          final devotional = _devotionals.firstWhere((d) => (d.id ?? d.title) == id);
-          await _devotionalService.deleteDevotional(devotional.id ?? devotional.title);
+          final devotional =
+              _devotionals.firstWhere((d) => (d.id ?? d.title) == id);
+          await _devotionalService
+              .deleteDevotional(devotional.id ?? devotional.title);
         }
 
         await _loadDevotionals();
@@ -194,7 +205,9 @@ class _EnhancedDevotionalAdminScreenState extends State<EnhancedDevotionalAdminS
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Successfully deleted ${_selectedDevotionals.length} devotionals')),
+            SnackBar(
+                content: Text(
+                    'Successfully deleted ${_selectedDevotionals.length} devotionals')),
           );
         }
       } catch (e) {
@@ -218,10 +231,12 @@ class _EnhancedDevotionalAdminScreenState extends State<EnhancedDevotionalAdminS
     if (result != null) {
       try {
         for (final id in _selectedDevotionals) {
-          final devotional = _devotionals.firstWhere((d) => (d.id ?? d.title) == id);
+          final devotional =
+              _devotionals.firstWhere((d) => (d.id ?? d.title) == id);
 
           String updatedTitle = devotional.title;
-          if (result['title_prefix'] != null && result['title_prefix'].isNotEmpty) {
+          if (result['title_prefix'] != null &&
+              result['title_prefix'].isNotEmpty) {
             updatedTitle = '${result['title_prefix']} ${devotional.title}';
           }
 
@@ -245,7 +260,9 @@ class _EnhancedDevotionalAdminScreenState extends State<EnhancedDevotionalAdminS
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Successfully updated ${_selectedDevotionals.length} devotionals')),
+            SnackBar(
+                content: Text(
+                    'Successfully updated ${_selectedDevotionals.length} devotionals')),
           );
         }
       } catch (e) {
@@ -301,7 +318,7 @@ class _EnhancedDevotionalAdminScreenState extends State<EnhancedDevotionalAdminS
     final result = await showDialog<DevotionalModel>(
       context: context,
       builder: (context) => DevotionalFormDialog(
-        title: devotional.id == null || devotional.id!.isEmpty ? 'Add Devotional' : 'Edit Devotional',
+        title: devotional.id.isEmpty ? 'Add Devotional' : 'Edit Devotional',
         initialDevotional: devotional,
         onSave: (updatedDevotional) async {
           return updatedDevotional;
@@ -350,7 +367,8 @@ class _EnhancedDevotionalAdminScreenState extends State<EnhancedDevotionalAdminS
 
     if (confirmed == true) {
       try {
-        await _devotionalService.deleteDevotional(devotional.id ?? devotional.title);
+        await _devotionalService
+            .deleteDevotional(devotional.id ?? devotional.title);
         await _loadDevotionals();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -434,7 +452,8 @@ class _EnhancedDevotionalAdminScreenState extends State<EnhancedDevotionalAdminS
                         children: [
                           Icon(Icons.delete, color: Colors.red, size: 20),
                           SizedBox(width: 8),
-                          Text('Delete All', style: TextStyle(color: Colors.red)),
+                          Text('Delete All',
+                              style: TextStyle(color: Colors.red)),
                         ],
                       ),
                     ),
@@ -501,9 +520,11 @@ class _EnhancedDevotionalAdminScreenState extends State<EnhancedDevotionalAdminS
               ),
               child: Row(
                 children: [
-                  _buildStatChip('Total', _devotionals.length.toString(), Colors.blue),
+                  _buildStatChip(
+                      'Total', _devotionals.length.toString(), Colors.blue),
                   const SizedBox(width: 12),
-                  _buildStatChip('Filtered', _filteredDevotionals.length.toString(), Colors.green),
+                  _buildStatChip('Filtered',
+                      _filteredDevotionals.length.toString(), Colors.green),
                   const Spacer(),
                   Text(
                     'Admin Panel',
@@ -597,7 +618,9 @@ class _EnhancedDevotionalAdminScreenState extends State<EnhancedDevotionalAdminS
 
         return Card(
           margin: const EdgeInsets.only(bottom: 8),
-          color: isSelected ? Theme.of(context).primaryColor.withValues(alpha: 0.1) : null,
+          color: isSelected
+              ? Theme.of(context).primaryColor.withValues(alpha: 0.1)
+              : null,
           child: ListTile(
             leading: _isSelectionMode
                 ? Checkbox(

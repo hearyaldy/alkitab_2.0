@@ -13,7 +13,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../constants/bible_data.dart';
 import '../../services/mock_data_service.dart';
 import '../../services/auth_service.dart';
-import '../../services/lazy_loading_service.dart';
 import '../../widgets/encouragement_widget.dart';
 
 class HomeTab extends ConsumerStatefulWidget {
@@ -63,7 +62,8 @@ class _HomeTabState extends ConsumerState<HomeTab> {
 
   Future<void> _loadBibleData() async {
     try {
-      final String response = await rootBundle.loadString('assets/bibles/indo_tb.json');
+      final String response =
+          await rootBundle.loadString('assets/bibles/indo_tb.json');
       _bibleData = json.decode(response);
 
       final List<dynamic> verses = _bibleData?['verses'] ?? [];
@@ -193,10 +193,14 @@ class _HomeTabState extends ConsumerState<HomeTab> {
     for (final verse in verses) {
       if (verse is Map<String, dynamic> &&
           verse['text'] != null &&
-          verse['text'].toString().toLowerCase().contains(query.toLowerCase())) {
+          verse['text']
+              .toString()
+              .toLowerCase()
+              .contains(query.toLowerCase())) {
         results.add({
           'text': verse['text'],
-          'reference': '${verse['book_name']} ${verse['chapter']}:${verse['verse']}',
+          'reference':
+              '${verse['book_name']} ${verse['chapter']}:${verse['verse']}',
           'book_name': verse['book_name'],
           'chapter': verse['chapter'],
           'verse': verse['verse'],
@@ -224,7 +228,8 @@ class _HomeTabState extends ConsumerState<HomeTab> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Theme.of(context).primaryColor,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(16)),
               ),
               child: Row(
                 children: [
@@ -293,7 +298,8 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                                 (book) => book['name'] == bookName,
                                 orElse: () => bibleBooks.first,
                               );
-                              context.go('/bible-reader?bookId=${bookData['id']}&chapterId=$chapter');
+                              context.go(
+                                  '/bible-reader?bookId=${bookData['id']}&chapterId=$chapter');
                             },
                             child: Padding(
                               padding: const EdgeInsets.all(16),
@@ -412,8 +418,9 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                       children: [
                         CircleAvatar(
                           radius: 16,
-                          backgroundImage:
-                              profileUrl != null ? NetworkImage(profileUrl) : null,
+                          backgroundImage: profileUrl != null
+                              ? NetworkImage(profileUrl)
+                              : null,
                           backgroundColor: Colors.white,
                           child: profileUrl == null
                               ? const Icon(Icons.person,
@@ -422,7 +429,8 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                         ),
                         const SizedBox(height: 4),
                         Text("Welcome, $firstName!",
-                            style: const TextStyle(fontSize: 8, color: Colors.white)),
+                            style: const TextStyle(
+                                fontSize: 8, color: Colors.white)),
                       ],
                     )
                   : Column(
@@ -446,7 +454,8 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                         ),
                         const SizedBox(height: 4),
                         Text("Tap to Login",
-                            style: const TextStyle(fontSize: 8, color: Colors.white)),
+                            style: const TextStyle(
+                                fontSize: 8, color: Colors.white)),
                       ],
                     ),
             ),
@@ -511,7 +520,8 @@ class _HomeTabState extends ConsumerState<HomeTab> {
           border: InputBorder.none,
           enabledBorder: InputBorder.none,
           focusedBorder: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           suffixIcon: PopupMenuButton<String>(
             icon: Icon(Icons.filter_list, color: Colors.grey[600]),
             onSelected: (value) {
@@ -555,7 +565,6 @@ class _HomeTabState extends ConsumerState<HomeTab> {
     );
   }
 
-
   Widget _bibleStatsCard() {
     return Card(
       elevation: 4,
@@ -584,7 +593,8 @@ class _HomeTabState extends ConsumerState<HomeTab> {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildStatItem('Books', '66', Icons.book),
-                _buildStatItem('Verses', _totalVerses.toString(), Icons.format_quote),
+                _buildStatItem(
+                    'Verses', _totalVerses.toString(), Icons.format_quote),
                 _buildStatItem('Old Test.', '39', Icons.history_edu),
                 _buildStatItem('New Test.', '27', Icons.auto_stories),
               ],
@@ -601,16 +611,19 @@ class _HomeTabState extends ConsumerState<HomeTab> {
         Icon(icon, size: 24, color: Theme.of(context).colorScheme.primary),
         const SizedBox(height: 4),
         Text(value,
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).colorScheme.onSecondaryContainer,
-          )),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.onSecondaryContainer,
+            )),
         Text(label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Theme.of(context).colorScheme.onSecondaryContainer.withValues(alpha: 0.7),
-          )),
+            style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSecondaryContainer
+                  .withValues(alpha: 0.7),
+            )),
       ],
     );
   }
@@ -627,7 +640,8 @@ class _HomeTabState extends ConsumerState<HomeTab> {
             Expanded(
               child: Card(
                 elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
                 color: Theme.of(context).colorScheme.primaryContainer,
                 child: InkWell(
                   borderRadius: BorderRadius.circular(12),
@@ -637,20 +651,27 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                     child: Column(
                       children: [
                         Icon(Icons.history_edu,
-                          size: 48,
-                          color: Theme.of(context).colorScheme.onPrimaryContainer),
+                            size: 48,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onPrimaryContainer),
                         const SizedBox(height: 8),
                         Text('Old Testament',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.onPrimaryContainer,
-                          )),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onPrimaryContainer,
+                            )),
                         Text('39 Books',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.7),
-                          )),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onPrimaryContainer
+                                  .withValues(alpha: 0.7),
+                            )),
                       ],
                     ),
                   ),
@@ -661,7 +682,8 @@ class _HomeTabState extends ConsumerState<HomeTab> {
             Expanded(
               child: Card(
                 elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
                 color: Theme.of(context).colorScheme.tertiaryContainer,
                 child: InkWell(
                   borderRadius: BorderRadius.circular(12),
@@ -671,20 +693,27 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                     child: Column(
                       children: [
                         Icon(Icons.auto_stories,
-                          size: 48,
-                          color: Theme.of(context).colorScheme.onTertiaryContainer),
+                            size: 48,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onTertiaryContainer),
                         const SizedBox(height: 8),
                         Text('New Testament',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.onTertiaryContainer,
-                          )),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onTertiaryContainer,
+                            )),
                         Text('27 Books',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(context).colorScheme.onTertiaryContainer.withValues(alpha: 0.7),
-                          )),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onTertiaryContainer
+                                  .withValues(alpha: 0.7),
+                            )),
                       ],
                     ),
                   ),
@@ -698,8 +727,10 @@ class _HomeTabState extends ConsumerState<HomeTab> {
   }
 
   void _showTestamentBooks(String testament) {
-    final books = testament == 'OT' ? getOldTestamentBooks() : getNewTestamentBooks();
-    final title = testament == 'OT' ? 'Old Testament Books' : 'New Testament Books';
+    final books =
+        testament == 'OT' ? getOldTestamentBooks() : getNewTestamentBooks();
+    final title =
+        testament == 'OT' ? 'Old Testament Books' : 'New Testament Books';
 
     showModalBottomSheet(
       context: context,
@@ -738,7 +769,8 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                     subtitle: Text('${book['chapters']} chapters'),
                     onTap: () {
                       Navigator.pop(context);
-                      context.go('/bible-reader?bookId=${book['id']}&chapterId=1');
+                      context
+                          .go('/bible-reader?bookId=${book['id']}&chapterId=1');
                     },
                   );
                 },
@@ -787,7 +819,8 @@ class _HomeTabState extends ConsumerState<HomeTab> {
   }
 
   Widget _devotionalSection() {
-    final recentDevotionals = _devotionals.where((d) => d != _todayDevo).take(3).toList();
+    final recentDevotionals =
+        _devotionals.where((d) => d != _todayDevo).take(3).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -842,7 +875,8 @@ class _HomeTabState extends ConsumerState<HomeTab> {
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(20),
@@ -919,7 +953,8 @@ Shared from Alkitab 2.0''';
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 10),
                   ),
                   child: const Text('Read More'),
                 ),
@@ -957,7 +992,8 @@ Shared from Alkitab 2.0''';
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                  const Icon(Icons.arrow_forward_ios,
+                      size: 16, color: Colors.grey),
                 ],
               ),
               if (dev['verse_reference'] != null) ...[
