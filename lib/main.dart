@@ -2,7 +2,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -64,7 +63,6 @@ Future<void> main() async {
       print('OfflineCacheService initialization failed: $e');
     }
 
-    await dotenv.load();
     await initializeDateFormatting('ms', null);
 
     // Initialize mock data service for offline development

@@ -20,6 +20,17 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == userId;
     }
 
+    // Per-user documents that carry the owner's uid in a field (e.g. 'user_id').
+    // Stored owner must match for read/update/delete; incoming owner must match
+    // for create/update, so a user cannot take over someone else's document.
+    function storedOwner(field) {
+      return request.auth != null && resource.data[field] == request.auth.uid;
+    }
+
+    function incomingOwner(field) {
+      return request.auth != null && request.resource.data[field] == request.auth.uid;
+    }
+
     // User roles collection - only superadmin can manage
     match /user_roles/{userId} {
       allow read: if isSuperadmin() || (request.auth != null && request.auth.uid == userId);
@@ -40,11 +51,9 @@ service cloud.firestore {
 
     // User bookmarks - users can manage their own
     match /user_bookmarks/{bookmarkId} {
-      allow read, write: if request.auth != null && (
-        resource.data.user_id == request.auth.uid ||
-        request.resource.data.user_id == request.auth.uid
-      );
-      allow delete: if request.auth != null && resource.data.user_id == request.auth.uid;
+      allow read, delete: if storedOwner('user_id');
+      allow create: if incomingOwner('user_id');
+      allow update: if storedOwner('user_id') && incomingOwner('user_id');
     }
 
     // User profiles - users can manage their own, superadmin can read all
@@ -60,20 +69,67 @@ service cloud.firestore {
 
     // Notes collection - users can manage their own
     match /user_notes/{noteId} {
-      allow read, write: if request.auth != null && (
-        resource.data.user_id == request.auth.uid ||
-        request.resource.data.user_id == request.auth.uid
-      );
-      allow delete: if request.auth != null && resource.data.user_id == request.auth.uid;
+      allow read, delete: if storedOwner('user_id');
+      allow create: if incomingOwner('user_id');
+      allow update: if storedOwner('user_id') && incomingOwner('user_id');
     }
 
     // Sync queue - users can manage their own
     match /sync_queue/{queueId} {
-      allow read, write: if request.auth != null && (
-        resource.data.user_id == request.auth.uid ||
-        request.resource.data.user_id == request.auth.uid
-      );
-      allow delete: if request.auth != null && resource.data.user_id == request.auth.uid;
+      allow read, delete: if storedOwner('user_id');
+      allow create: if incomingOwner('user_id');
+      allow update: if storedOwner('user_id') && incomingOwner('user_id');
+    }
+
+    // Other per-user collections keyed by a 'user_id' field
+    match /user_highlights/{id} {
+      allow read, delete: if storedOwner('user_id');
+      allow create: if incomingOwner('user_id');
+      allow update: if storedOwner('user_id') && incomingOwner('user_id');
+    }
+    match /bookmarks/{id} {
+      allow read, delete: if storedOwner('user_id');
+      allow create: if incomingOwner('user_id');
+      allow update: if storedOwner('user_id') && incomingOwner('user_id');
+    }
+    match /reading_progress/{id} {
+      allow read, delete: if storedOwner('user_id');
+      allow create: if incomingOwner('user_id');
+      allow update: if storedOwner('user_id') && incomingOwner('user_id');
+    }
+
+    // Bible marks use a camelCase 'userId' field
+    match /bible_marks/{id} {
+      allow read, delete: if storedOwner('userId');
+      allow create: if incomingOwner('userId');
+      allow update: if storedOwner('userId') && incomingOwner('userId');
+    }
+
+    // Per-user documents whose id is the user's uid
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+    match /user_progress/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+    match /user_settings/{docId} {
+      allow read, delete: if isOwner(docId) || storedOwner('user_id');
+      allow create: if isOwner(docId) || incomingOwner('user_id');
+      allow update: if isOwner(docId) || (storedOwner('user_id') && incomingOwner('user_id'));
+    }
+
+    // Bible content - anyone can read, only admins can write (data migration)
+    match /bible_versions/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /bible_books/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /bible_verses/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     // Default deny all other collections
