@@ -12,7 +12,6 @@ import 'router.dart';
 import 'config/theme.dart';
 import 'providers/theme_provider.dart';
 import 'services/local_storage_service.dart';
-import 'services/mock_data_service.dart';
 import 'services/admin_service.dart';
 import 'services/sample_data_uploader.dart';
 import 'services/offline_cache_service.dart';
@@ -66,10 +65,6 @@ Future<void> main() async {
 
     await dotenv.load();
     await initializeDateFormatting('ms', null);
-
-    // Initialize mock data service for offline development
-    await MockDataService.initialize();
-    print('Mock data service initialized for offline development.');
 
     // Initialize admin service for superadmin setup
     try {

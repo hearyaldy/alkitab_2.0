@@ -112,7 +112,8 @@ class _DataMigrationScreenState extends State<DataMigrationScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error),
             child: const Text('Delete All'),
           ),
         ],

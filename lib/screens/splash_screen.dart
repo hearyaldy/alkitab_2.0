@@ -133,7 +133,7 @@ class _SplashScreenState extends State<SplashScreen>
                                   shape: BoxShape.circle,
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.3),
+                                      color: Colors.black.withValues(alpha: 0.3),
                                       blurRadius: 20,
                                       offset: const Offset(0, 10),
                                     ),
@@ -176,7 +176,7 @@ class _SplashScreenState extends State<SplashScreen>
                                             'Modern Bible App',
                                             style: TextStyle(
                                               fontSize: 16,
-                                              color: Colors.white.withOpacity(0.9),
+                                              color: Colors.white.withValues(alpha: 0.9),
                                               fontWeight: FontWeight.w300,
                                               letterSpacing: 0.5,
                                             ),
@@ -211,7 +211,7 @@ class _SplashScreenState extends State<SplashScreen>
                               width: 200,
                               height: 4,
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.3),
+                                color: Colors.white.withValues(alpha: 0.3),
                                 borderRadius: BorderRadius.circular(2),
                               ),
                               child: FractionallySizedBox(
@@ -223,7 +223,7 @@ class _SplashScreenState extends State<SplashScreen>
                                     borderRadius: BorderRadius.circular(2),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.white.withOpacity(0.5),
+                                        color: Colors.white.withValues(alpha: 0.5),
                                         blurRadius: 4,
                                       ),
                                     ],
@@ -235,7 +235,7 @@ class _SplashScreenState extends State<SplashScreen>
                             Text(
                               'Loading...',
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.8),
+                                color: Colors.white.withValues(alpha: 0.8),
                                 fontSize: 14,
                                 fontWeight: FontWeight.w300,
                               ),

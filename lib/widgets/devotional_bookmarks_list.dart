@@ -9,6 +9,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/devotional_model.dart';
 import '../services/devotional_service.dart';
 import 'devotional_detail_sheet.dart';
+import 'empty_state.dart';
 
 class DevotionalBookmarksList extends StatefulWidget {
   final List<DevotionalModel> devotionals;
@@ -74,13 +75,13 @@ class _DevotionalBookmarksListState extends State<DevotionalBookmarksList> {
             ? '${devotional.content.substring(0, 150)}...'
             : devotional.content;
         shareText =
-            '${devotional.title}\n\n$excerpt\n\nShared from My Faith App';
+            '${devotional.title}\n\n$excerpt\n\nShared from Alkitab 2.0';
       } else if (bookmark['title'] != null) {
         // Use bookmark title if available
-        shareText = '${bookmark['title']}\n\nShared from My Faith App';
+        shareText = '${bookmark['title']}\n\nShared from Alkitab 2.0';
       } else {
         // Fallback
-        shareText = 'Devotional bookmark from My Faith App';
+        shareText = 'Devotional bookmark from Alkitab 2.0';
       }
 
       await SharePlus.instance.share(ShareParams(text: shareText));
@@ -133,7 +134,11 @@ class _DevotionalBookmarksListState extends State<DevotionalBookmarksList> {
 
         final snapshot = bookmarkSnapshot.data;
         if (snapshot == null) {
-          return const Center(child: Text('No data available'));
+          return const EmptyState(
+            icon: Icons.bookmark_border,
+            title: 'No devotional bookmarks yet',
+            subtitle: 'Bookmark your favorite devotionals to see them here',
+          );
         }
 
         final bookmarks = snapshot.docs.map((doc) => {
@@ -147,34 +152,13 @@ class _DevotionalBookmarksListState extends State<DevotionalBookmarksList> {
             .toList();
 
         if (devotionalBookmarks.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.bookmark_border, size: 64, color: Colors.grey),
-                const SizedBox(height: 16),
-                const Text(
-                  'No devotional bookmarks yet',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Bookmark your favorite devotionals to see them here',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey),
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.menu_book),
-                  label: const Text('Go to Devotionals'),
-                  onPressed: () => context.go('/devotional'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.indigo,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ],
-            ),
+          return EmptyState(
+            icon: Icons.bookmark_border,
+            title: 'No devotional bookmarks yet',
+            subtitle: 'Bookmark your favorite devotionals to see them here',
+            ctaLabel: 'Go to Devotionals',
+            ctaIcon: Icons.menu_book,
+            onCta: () => context.go('/devotional'),
           );
         }
 

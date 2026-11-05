@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/auth_service.dart';
+import '../../config/theme.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -91,6 +92,7 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -98,9 +100,9 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Color(0xFF1E3A8A), // Deep blue
-              Color(0xFF3B82F6), // Blue
-              Color(0xFF60A5FA), // Light blue
+              AppTheme.primaryColor,
+              AppTheme.secondaryColor,
+              AppTheme.accentColor,
             ],
           ),
         ),
@@ -134,7 +136,7 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
                           child: const Icon(
                             Icons.menu_book_rounded,
                             size: 40,
-                            color: Color(0xFF1E3A8A),
+                            color: AppTheme.primaryColor,
                           ),
                         ),
                       ),
@@ -172,7 +174,7 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: colorScheme.surface,
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
@@ -191,21 +193,7 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
                             controller: _usernameController,
                             decoration: InputDecoration(
                               labelText: 'Full Name',
-                              prefixIcon: const Icon(Icons.person_outline, color: Color(0xFF6B7280)),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.grey.shade300),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.grey.shade300),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2),
-                              ),
-                              fillColor: const Color(0xFFF9FAFB),
-                              filled: true,
+                              prefixIcon: Icon(Icons.person_outline, color: colorScheme.onSurfaceVariant),
                             ),
                             validator: (value) => value == null || value.isEmpty
                                 ? 'Please enter your name'
@@ -219,21 +207,7 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
                             controller: _emailController,
                             decoration: InputDecoration(
                               labelText: 'Email Address',
-                              prefixIcon: const Icon(Icons.email_outlined, color: Color(0xFF6B7280)),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.grey.shade300),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.grey.shade300),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2),
-                              ),
-                              fillColor: const Color(0xFFF9FAFB),
-                              filled: true,
+                              prefixIcon: Icon(Icons.email_outlined, color: colorScheme.onSurfaceVariant),
                             ),
                             keyboardType: TextInputType.emailAddress,
                             validator: (value) => value == null || value.isEmpty
@@ -250,23 +224,9 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
                             controller: _passwordController,
                             decoration: InputDecoration(
                               labelText: 'Password',
-                              prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF6B7280)),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.grey.shade300),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.grey.shade300),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2),
-                              ),
-                              fillColor: const Color(0xFFF9FAFB),
-                              filled: true,
+                              prefixIcon: Icon(Icons.lock_outline, color: colorScheme.onSurfaceVariant),
                               helperText: 'Minimum 6 characters',
-                              helperStyle: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                              helperStyle: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
                             ),
                             obscureText: true,
                             validator: (value) => value == null || value.length < 6
@@ -281,21 +241,7 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
                             controller: _confirmPasswordController,
                             decoration: InputDecoration(
                               labelText: 'Confirm Password',
-                              prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF6B7280)),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.grey.shade300),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.grey.shade300),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2),
-                              ),
-                              fillColor: const Color(0xFFF9FAFB),
-                              filled: true,
+                              prefixIcon: Icon(Icons.lock_outline, color: colorScheme.onSurfaceVariant),
                             ),
                             obscureText: true,
                             validator: (value) => value != _passwordController.text
@@ -313,7 +259,7 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
                                 ? Container(
                                     decoration: BoxDecoration(
                                       gradient: const LinearGradient(
-                                        colors: [Color(0xFF3B82F6), Color(0xFF1E3A8A)],
+                                        colors: [AppTheme.secondaryColor, AppTheme.primaryColor],
                                       ),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
@@ -335,7 +281,7 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
                                     child: Ink(
                                       decoration: BoxDecoration(
                                         gradient: const LinearGradient(
-                                          colors: [Color(0xFF3B82F6), Color(0xFF1E3A8A)],
+                                          colors: [AppTheme.secondaryColor, AppTheme.primaryColor],
                                         ),
                                         borderRadius: BorderRadius.circular(12),
                                       ),
@@ -360,19 +306,18 @@ class RegisterScreenState extends ConsumerState<RegisterScreen> {
                               child: Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: Colors.red.shade50,
+                                  color: colorScheme.errorContainer,
                                   borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.red.shade200),
                                 ),
                                 child: Row(
                                   children: [
-                                    Icon(Icons.error_outline, color: Colors.red.shade600, size: 20),
+                                    Icon(Icons.error_outline, color: colorScheme.onErrorContainer, size: 20),
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
                                         _errorMessage!,
                                         style: TextStyle(
-                                          color: Colors.red.shade700,
+                                          color: colorScheme.onErrorContainer,
                                           fontSize: 14,
                                         ),
                                       ),

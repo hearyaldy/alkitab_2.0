@@ -68,7 +68,7 @@ class _EncouragementWidgetState extends State<EncouragementWidget> {
 
 ${_currentMessage!.message}
 
-Dikongsi dari Alkitab 2.0
+Shared from Alkitab 2.0
 ''';
       SharePlus.instance.share(ShareParams(text: content));
     }
@@ -78,12 +78,12 @@ Dikongsi dari Alkitab 2.0
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Reset Perasaan'),
-        content: const Text('Adakah anda pasti mahu reset semua kiraan perasaan? Tindakan ini tidak boleh dibatalkan.'),
+        title: const Text('Reset Feelings'),
+        content: const Text('Are you sure you want to reset all feeling counts? This action cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Batal'),
+            child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
@@ -100,7 +100,7 @@ Dikongsi dari Alkitab 2.0
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Semua kiraan perasaan telah direset'),
+            content: Text('All feeling counts have been reset'),
             backgroundColor: Colors.green,
           ),
         );
@@ -145,7 +145,7 @@ Dikongsi dari Alkitab 2.0
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Galakan Harian',
+                    'Daily Encouragement',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -241,7 +241,7 @@ Dikongsi dari Alkitab 2.0
                         Row(
                           children: [
                             Text(
-                              'Perasaan Anda Yang Paling Kerap:',
+                              'Your Most Frequent Feeling:',
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 color: Colors.indigo.shade700,
@@ -249,34 +249,28 @@ Dikongsi dari Alkitab 2.0
                               ),
                             ),
                             const Spacer(),
-                            GestureDetector(
-                              onTap: _showResetConfirmation,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.red.shade50,
+                            OutlinedButton.icon(
+                              onPressed: _showResetConfirmation,
+                              icon: Icon(Icons.refresh,
+                                  size: 14, color: Colors.red.shade600),
+                              label: Text(
+                                'Reset',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.red.shade600,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                backgroundColor: Colors.red.shade50,
+                                side: BorderSide(color: Colors.red.shade200),
+                                shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: Colors.red.shade200),
                                 ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.refresh,
-                                      size: 14,
-                                      color: Colors.red.shade600,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      'Reset',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.red.shade600,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
                             ),
                           ],
@@ -349,7 +343,7 @@ Dikongsi dari Alkitab 2.0
                           foregroundColor: Colors.indigo.shade700,
                           elevation: 0,
                         ),
-                        child: const Text('Bagaimana perasaan anda?'),
+                        child: const Text('How are you feeling?'),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -385,7 +379,7 @@ Dikongsi dari Alkitab 2.0
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Bagaimana perasaan anda hari ini?',
+                          'How are you feeling today?',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: Colors.indigo.shade700,

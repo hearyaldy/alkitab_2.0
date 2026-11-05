@@ -108,7 +108,7 @@ class BibleTab extends ConsumerWidget {
                           gradient: LinearGradient(
                             colors: [
                               Colors.transparent,
-                              Colors.black.withOpacity(0.4)
+                              Colors.black.withValues(alpha: 0.4)
                             ],
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
@@ -133,8 +133,8 @@ class BibleTab extends ConsumerWidget {
               delegate: _SliverAppBarDelegate(
                 TabBar(
                   tabs: const [
-                    Tab(text: 'Perjanjian Lama'),
-                    Tab(text: 'Perjanjian Baru'),
+                    Tab(text: 'Old Testament'),
+                    Tab(text: 'New Testament'),
                   ],
                   labelColor: themeColor,
                   unselectedLabelColor: Colors.white70,

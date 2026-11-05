@@ -96,9 +96,12 @@ class HighlightColors {
   static const pink = 'FFF5CAE0'; // Soft pink
   static const purple = 'FFE1D5F2'; // Soft purple
   static const orange = 'FFFFD6AD'; // Soft orange
+  static const red = 'FFF5B8B8'; // Soft red
+  static const gray = 'FFD9D9D9'; // Soft gray
 
   // Get all available colors
-  static List<String> all() => [yellow, green, blue, pink, purple, orange];
+  static List<String> all() =>
+      [yellow, green, blue, pink, purple, orange, red, gray];
 
   // Get color from name
   static String fromName(String name) {
@@ -115,6 +118,10 @@ class HighlightColors {
         return purple;
       case 'orange':
         return orange;
+      case 'red':
+        return red;
+      case 'gray':
+        return gray;
       default:
         return yellow; // Default to yellow
     }
@@ -135,6 +142,10 @@ class HighlightColors {
         return 'Purple';
       case orange:
         return 'Orange';
+      case red:
+        return 'Red';
+      case gray:
+        return 'Gray';
       default:
         return 'Custom';
     }

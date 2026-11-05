@@ -128,20 +128,20 @@ class EncouragementService {
     ),
   ];
 
-  // Get feeling labels for UI (in Malay)
+  // Get feeling labels for UI
   Map<Feeling, String> get feelingLabels => {
-    Feeling.gembira: "Gembira",
-    Feeling.sedih: "Sedih",
-    Feeling.cemas: "Cemas",
-    Feeling.marah: "Marah",
-    Feeling.keliru: "Keliru",
-    Feeling.bersyukur: "Bersyukur",
-    Feeling.damai: "Damai",
-    Feeling.harapan: "Harapan",
-    Feeling.letih: "Letih",
-    Feeling.tertekan: "Tertekan",
-    Feeling.putusAsa: "Putus Asa",
-    Feeling.kesepian: "Kesepian",
+    Feeling.gembira: "Happy",
+    Feeling.sedih: "Sad",
+    Feeling.cemas: "Anxious",
+    Feeling.marah: "Angry",
+    Feeling.keliru: "Confused",
+    Feeling.bersyukur: "Grateful",
+    Feeling.damai: "Peaceful",
+    Feeling.harapan: "Hopeful",
+    Feeling.letih: "Tired",
+    Feeling.tertekan: "Overwhelmed",
+    Feeling.putusAsa: "Discouraged",
+    Feeling.kesepian: "Lonely",
   };
 
   // Get random daily encouragement

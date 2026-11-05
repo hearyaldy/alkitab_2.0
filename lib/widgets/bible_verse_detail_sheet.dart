@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'section_header.dart';
 
 class BibleVerseDetailSheet extends StatelessWidget {
   final Map<String, dynamic> bookmark;
@@ -83,13 +84,7 @@ class BibleVerseDetailSheet extends StatelessWidget {
 
                 // Notes if available
                 if (notes != null && notes.toString().isNotEmpty) ...[
-                  const Text(
-                    'Notes',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  const SectionHeader(title: 'Notes'),
                   const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.all(12),

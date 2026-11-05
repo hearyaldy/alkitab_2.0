@@ -14,6 +14,10 @@ import '../../constants/bible_data.dart';
 import '../../services/mock_data_service.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/encouragement_widget.dart';
+import '../../widgets/section_header.dart';
+import '../../widgets/circle_icon_badge.dart';
+import '../../widgets/empty_state.dart';
+import '../../widgets/app_card.dart';
 
 class HomeTab extends ConsumerStatefulWidget {
   const HomeTab({super.key});
@@ -157,12 +161,6 @@ class _HomeTabState extends ConsumerState<HomeTab> {
         .reversed
         .take(5)
         .toList();
-
-    // If no reading history, use mock data
-    if (_recentReadings.isEmpty) {
-      await MockDataService.initialize();
-      _recentReadings = MockDataService.getRecentReadings();
-    }
   }
 
   Future<void> _refreshDevotionals() async {
@@ -237,7 +235,7 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Hasil Pencarian: "$query"',
+                      'Search Results: "$query"',
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -246,7 +244,7 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                     ),
                   ),
                   Text(
-                    '${results.length} hasil',
+                    '${results.length} results',
                     style: const TextStyle(
                       color: Colors.white70,
                       fontSize: 14,
@@ -264,12 +262,12 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                           Icon(Icons.search_off, size: 64, color: Colors.grey),
                           SizedBox(height: 16),
                           Text(
-                            'Tidak ada hasil ditemukan',
+                            'No results found',
                             style: TextStyle(fontSize: 16, color: Colors.grey),
                           ),
                           SizedBox(height: 8),
                           Text(
-                            'Coba kata kunci yang berbeda',
+                            'Try a different keyword',
                             style: TextStyle(fontSize: 14, color: Colors.grey),
                           ),
                         ],
@@ -390,7 +388,7 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                 children: [
                   const Text('Alkitab 2.0',
                       style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 20,
                           fontWeight: FontWeight.bold,
                           color: Colors.white)),
                   const SizedBox(height: 2),
@@ -398,12 +396,13 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                     children: [
                       Text(formattedDate,
                           style: const TextStyle(
-                              fontSize: 8, color: Colors.white70)),
+                              fontSize: 12, color: Colors.white70)),
                       const Text(' | ',
-                          style: TextStyle(fontSize: 8, color: Colors.white70)),
+                          style:
+                              TextStyle(fontSize: 12, color: Colors.white70)),
                       Text(dayName,
                           style: const TextStyle(
-                              fontSize: 8, color: Colors.white70)),
+                              fontSize: 12, color: Colors.white70)),
                     ],
                   ),
                 ],
@@ -430,7 +429,7 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                         const SizedBox(height: 4),
                         Text("Welcome, $firstName!",
                             style: const TextStyle(
-                                fontSize: 8, color: Colors.white)),
+                                fontSize: 12, color: Colors.white)),
                       ],
                     )
                   : Column(
@@ -455,7 +454,7 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                         const SizedBox(height: 4),
                         Text("Tap to Login",
                             style: const TextStyle(
-                                fontSize: 8, color: Colors.white)),
+                                fontSize: 12, color: Colors.white)),
                       ],
                     ),
             ),
@@ -501,65 +500,28 @@ class _HomeTabState extends ConsumerState<HomeTab> {
   }
 
   Widget _buildSearchField() {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: Colors.grey.shade300,
+          color: colorScheme.outlineVariant,
           width: 1,
         ),
       ),
       child: TextField(
         onSubmitted: (query) => _performSearch(query),
         decoration: InputDecoration(
-          hintText: 'Cari ayat Alkitab atau kata...',
-          hintStyle: TextStyle(color: Colors.grey[500]),
-          prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
+          hintText: 'Search Bible verses or words...',
+          hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
+          prefixIcon: Icon(Icons.search, color: colorScheme.onSurfaceVariant),
           border: InputBorder.none,
           enabledBorder: InputBorder.none,
           focusedBorder: InputBorder.none,
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          suffixIcon: PopupMenuButton<String>(
-            icon: Icon(Icons.filter_list, color: Colors.grey[600]),
-            onSelected: (value) {
-              // Handle filter selection
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'verse',
-                child: Row(
-                  children: [
-                    Icon(Icons.format_quote),
-                    SizedBox(width: 8),
-                    Text('Cari Ayat'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'word',
-                child: Row(
-                  children: [
-                    Icon(Icons.text_fields),
-                    SizedBox(width: 8),
-                    Text('Cari Kata'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'book',
-                child: Row(
-                  children: [
-                    Icon(Icons.book),
-                    SizedBox(width: 8),
-                    Text('Cari Kitab'),
-                  ],
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -592,11 +554,13 @@ class _HomeTabState extends ConsumerState<HomeTab> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildStatItem('Books', '66', Icons.book),
+                _buildStatItem('Books', '66', Icons.book, Colors.blue),
+                _buildStatItem('Verses', _totalVerses.toString(),
+                    Icons.format_quote, Colors.purple),
                 _buildStatItem(
-                    'Verses', _totalVerses.toString(), Icons.format_quote),
-                _buildStatItem('Old Test.', '39', Icons.history_edu),
-                _buildStatItem('New Test.', '27', Icons.auto_stories),
+                    'Old Test.', '39', Icons.history_edu, Colors.amber[700]!),
+                _buildStatItem(
+                    'New Test.', '27', Icons.auto_stories, Colors.green),
               ],
             ),
           ],
@@ -605,11 +569,11 @@ class _HomeTabState extends ConsumerState<HomeTab> {
     );
   }
 
-  Widget _buildStatItem(String label, String value, IconData icon) {
+  Widget _buildStatItem(String label, String value, IconData icon, Color color) {
     return Column(
       children: [
-        Icon(icon, size: 24, color: Theme.of(context).colorScheme.primary),
-        const SizedBox(height: 4),
+        CircleIconBadge(icon: icon, color: color, size: 44, iconSize: 22),
+        const SizedBox(height: 8),
         Text(value,
             style: TextStyle(
               fontSize: 18,
@@ -632,8 +596,7 @@ class _HomeTabState extends ConsumerState<HomeTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Read the Bible',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+        const SectionHeader(title: 'Read the Bible'),
         const SizedBox(height: 12),
         Row(
           children: [
@@ -745,9 +708,7 @@ class _HomeTabState extends ConsumerState<HomeTab> {
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text(title,
-                  style: const TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.bold)),
+              child: SectionHeader(title: title),
             ),
             const Divider(),
             Expanded(
@@ -786,34 +747,67 @@ class _HomeTabState extends ConsumerState<HomeTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Continue Reading',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+        const SectionHeader(title: 'Continue Reading'),
         const SizedBox(height: 12),
-        ..._recentReadings.map((entry) {
-          final book = entry['bookId'] ?? 'Unknown';
-          final chapter = entry['chapterId'] ?? 1;
-          final bookName = entry['bookName'] ?? book;
-          final progress = (entry['progress'] ?? 0.0) as double;
-          return Card(
-            elevation: 2,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            child: ListTile(
-              leading: const Icon(Icons.bookmark),
-              title: Text('$bookName Chapter $chapter'),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('${(progress * 100).round()}% read'),
-                  const SizedBox(height: 4),
-                  LinearProgressIndicator(value: progress),
-                ],
+        if (_recentReadings.isEmpty)
+          EmptyState(
+            icon: Icons.menu_book_outlined,
+            title: 'No reading history yet',
+            subtitle: 'Start reading a chapter to see it here.',
+            ctaLabel: 'Go to Bible',
+            ctaIcon: Icons.book,
+            onCta: () => context.go('/bible'),
+          )
+        else
+          ..._recentReadings.map((entry) {
+            final book = entry['bookId'] ?? 'Unknown';
+            final chapter = entry['chapterId'] ?? 1;
+            final bookName = entry['bookName'] ?? book;
+            final progress = (entry['progress'] ?? 0.0) as double;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: AppCard(
+                padding: const EdgeInsets.all(12),
+                onTap: () => context
+                    .go('/bible-reader?bookId=$book&chapterId=$chapter'),
+                child: Row(
+                  children: [
+                    const CircleIconBadge(
+                      icon: Icons.bookmark,
+                      color: Colors.teal,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('$bookName Chapter $chapter',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 4),
+                          Text('${(progress * 100).round()}% read',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant)),
+                          const SizedBox(height: 4),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: progress,
+                              color: Colors.teal,
+                              backgroundColor: Colors.teal.withValues(alpha: 0.15),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              onTap: () =>
-                  context.go('/bible-reader?bookId=$book&chapterId=$chapter'),
-            ),
-          );
-        }),
+            );
+          }),
       ],
     );
   }
@@ -825,16 +819,12 @@ class _HomeTabState extends ConsumerState<HomeTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text('Daily Devotionals',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            TextButton(
-              onPressed: () => context.go('/devotional'),
-              child: const Text('View All'),
-            ),
-          ],
+        SectionHeader(
+          title: 'Daily Devotionals',
+          trailing: TextButton(
+            onPressed: () => context.go('/devotional'),
+            child: const Text('View All'),
+          ),
         ),
         const SizedBox(height: 12),
         if (_todayDevo != null) ...[
@@ -842,8 +832,11 @@ class _HomeTabState extends ConsumerState<HomeTab> {
           const SizedBox(height: 16),
         ],
         if (recentDevotionals.isNotEmpty) ...[
-          const Text('Recent Devotionals',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          Text('Recent Devotionals',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           ...recentDevotionals.map((dev) => _buildDevotionalCard(dev)),
         ],
@@ -967,63 +960,69 @@ Shared from Alkitab 2.0''';
   }
 
   Widget _buildDevotionalCard(Map<String, dynamic> dev) {
-    return Card(
-      elevation: 3,
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: AppCard(
         onTap: () => _showDevotionalDetails(dev),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const CircleIconBadge(
+              icon: Icons.menu_book_outlined,
+              color: Colors.deepPurple,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      dev['title'] ?? 'Untitled',
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          dev['title'] ?? 'Untitled',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const Icon(Icons.arrow_forward_ios,
+                          size: 16, color: Colors.grey),
+                    ],
+                  ),
+                  if (dev['verse_reference'] != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      dev['verse_reference'],
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).primaryColor,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                  if (dev['devotional_text'] != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      (dev['devotional_text']).length > 80
+                          ? '${(dev['devotional_text']).substring(0, 80)}...'
+                          : dev['devotional_text'],
                       style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: Colors.grey,
+                        height: 1.3,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  const Icon(Icons.arrow_forward_ios,
-                      size: 16, color: Colors.grey),
+                  ],
                 ],
               ),
-              if (dev['verse_reference'] != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  dev['verse_reference'],
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).primaryColor,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-              if (dev['devotional_text'] != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  (dev['devotional_text']).length > 80
-                      ? '${(dev['devotional_text']).substring(0, 80)}...'
-                      : dev['devotional_text'],
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey,
-                    height: 1.3,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:alkitab_2_0/models/highlight_model.dart';
 import 'package:alkitab_2_0/providers/highlight_provider.dart';
 import 'package:alkitab_2_0/constants/bible_data.dart';
+import 'package:alkitab_2_0/widgets/empty_state.dart';
 
 class HighlightsScreen extends ConsumerWidget {
   const HighlightsScreen({super.key});
@@ -13,13 +14,20 @@ class HighlightsScreen extends ConsumerWidget {
     final highlightsAsync = ref.watch(highlightListProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Sorotan Alkitab')),
+      appBar: AppBar(title: const Text('Bible Highlights')),
       body: highlightsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error: $e')),
         data: (List<HighlightModel> highlights) {
           if (highlights.isEmpty) {
-            return const Center(child: Text('Belum ada ayat yang disorot.'));
+            return EmptyState(
+              icon: Icons.highlight_outlined,
+              title: 'No verses highlighted yet',
+              subtitle: 'Highlight your favorite Bible verses to see them here',
+              ctaLabel: 'Go to Bible',
+              ctaIcon: Icons.book,
+              onCta: () => context.go('/bible'),
+            );
           }
 
           return ListView.builder(

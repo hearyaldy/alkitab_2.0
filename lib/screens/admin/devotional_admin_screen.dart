@@ -75,8 +75,10 @@ class _DevotionalAdminScreenState extends State<DevotionalAdminScreen> {
   }
 
   Future<void> _createDevotional() async {
-    final result = await showDialog<DevotionalModel>(
+    final result = await showModalBottomSheet<DevotionalModel>(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) => DevotionalFormDialog(
         title: 'Create New Devotional',
         onSave: (devotional) async {
@@ -114,8 +116,10 @@ class _DevotionalAdminScreenState extends State<DevotionalAdminScreen> {
   }
 
   Future<void> _editDevotional(DevotionalModel devotional) async {
-    final result = await showDialog<DevotionalModel>(
+    final result = await showModalBottomSheet<DevotionalModel>(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) => DevotionalFormDialog(
         title: 'Edit Devotional',
         initialDevotional: devotional,
@@ -153,7 +157,8 @@ class _DevotionalAdminScreenState extends State<DevotionalAdminScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error),
             child: const Text('Delete'),
           ),
         ],
@@ -180,9 +185,11 @@ class _DevotionalAdminScreenState extends State<DevotionalAdminScreen> {
   }
 
   Future<void> _bulkImportDevotionals() async {
-    final result = await showDialog<String?>(
+    final result = await showModalBottomSheet<String?>(
       context: context,
-      barrierDismissible: false,
+      isScrollControlled: true,
+      isDismissible: false,
+      backgroundColor: Colors.transparent,
       builder: (context) => _BulkImportDialog(onFileSelected: _pickJsonFile),
     );
 
@@ -567,80 +574,125 @@ class _BulkImportDialogState extends State<_BulkImportDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Bulk Import Devotionals'),
-      content: SizedBox(
-        width: double.maxFinite,
-        height: 450,
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        height: MediaQuery.of(context).size.height * 0.85,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Import options
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () async {
-                      final result = await widget.onFileSelected();
-                      if (result != null && mounted) {
-                        Navigator.pop(context, result);
-                      }
-                    },
-                    icon: const Icon(Icons.file_upload),
-                    label: const Text('Choose File'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
+            Padding(
+              padding: const EdgeInsets.only(top: 12, bottom: 4),
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Bulk Import Devotionals',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.bold),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                const Text('OR', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(width: 12),
-                const Text('Paste JSON below:'),
-              ],
+                ],
+              ),
             ),
-            const SizedBox(height: 12),
-            const Text(
-              'Expected format: Array of devotional objects',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-            const SizedBox(height: 12),
             Expanded(
-              child: TextField(
-                controller: _jsonController,
-                maxLines: null,
-                expands: true,
-                textAlignVertical: TextAlignVertical.top,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  hintText: '[\n  {\n    "title": "Devotional Title",\n    "content": "...",\n    ...\n  }\n]',
-                  contentPadding: EdgeInsets.all(12),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Import options
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              final result = await widget.onFileSelected();
+                              if (result != null && mounted) {
+                                Navigator.pop(context, result);
+                              }
+                            },
+                            icon: const Icon(Icons.file_upload),
+                            label: const Text('Choose File'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Text('OR',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(width: 12),
+                        const Text('Paste JSON below:'),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Expected format: Array of devotional objects',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: _jsonController,
+                        maxLines: null,
+                        expands: true,
+                        textAlignVertical: TextAlignVertical.top,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          hintText: '[\n  {\n    "title": "Devotional Title",\n    "content": "...",\n    ...\n  }\n]',
+                          contentPadding: EdgeInsets.all(12),
+                        ),
+                        style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                      ),
+                    ),
+                  ],
                 ),
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+              ),
+            ),
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, null),
+                      child: const Text('Cancel'),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: () {
+                        if (_jsonController.text.trim().isNotEmpty) {
+                          Navigator.pop(context, _jsonController.text);
+                        }
+                      },
+                      child: const Text('Import'),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, null),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            if (_jsonController.text.trim().isNotEmpty) {
-              Navigator.pop(context, _jsonController.text);
-            }
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green,
-            foregroundColor: Colors.white,
-          ),
-          child: const Text('Import'),
-        ),
-      ],
     );
   }
 }

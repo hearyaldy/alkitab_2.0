@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../services/analytics_service.dart';
 import '../../services/auth_service.dart';
+import '../../widgets/app_card.dart';
+import '../../widgets/section_header.dart';
+import '../../widgets/empty_state.dart';
+import '../../widgets/circle_icon_badge.dart';
 
 class AnalyticsDashboardScreen extends ConsumerStatefulWidget {
   const AnalyticsDashboardScreen({super.key});
@@ -330,7 +334,10 @@ class _AnalyticsDashboardScreenState
 
   Widget _buildPatternsTab(ThemeData theme) {
     if (_patterns == null) {
-      return const Center(child: Text('No pattern data available'));
+      return const EmptyState(
+        icon: Icons.insights_outlined,
+        title: 'No pattern data available',
+      );
     }
 
     return SingleChildScrollView(
@@ -383,30 +390,12 @@ class _AnalyticsDashboardScreenState
     Color color,
     ThemeData theme,
   ) {
-    return Container(
+    return AppCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 32),
-          ),
+          CircleIconBadge(icon: icon, color: color, size: 56, iconSize: 32),
           const SizedBox(height: 12),
           Text(
             value,
@@ -428,33 +417,14 @@ class _AnalyticsDashboardScreenState
 
   Widget _buildContentInsightsCard(
       ContentAnalytics analytics, ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.insights, color: theme.primaryColor),
-              const SizedBox(width: 8),
-              Text(
-                'Content Library',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+          SectionHeader(
+            icon: Icons.insights,
+            iconColor: Colors.green,
+            title: 'Content Library',
           ),
           const SizedBox(height: 16),
           Row(
@@ -503,33 +473,14 @@ class _AnalyticsDashboardScreenState
   }
 
   Widget _buildEngagementCard(EngagementAnalytics analytics, ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.people, color: theme.primaryColor),
-              const SizedBox(width: 8),
-              Text(
-                'Community Engagement',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+          SectionHeader(
+            icon: Icons.people,
+            iconColor: Colors.teal,
+            title: 'Community Engagement',
           ),
           const SizedBox(height: 16),
           GridView.count(
@@ -578,33 +529,14 @@ class _AnalyticsDashboardScreenState
   }
 
   Widget _buildReadingStatsCard(UserAnalytics analytics, ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.auto_stories, color: theme.primaryColor),
-              const SizedBox(width: 8),
-              Text(
-                'Reading Journey',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+          SectionHeader(
+            icon: Icons.auto_stories,
+            iconColor: Colors.indigo,
+            title: 'Reading Journey',
           ),
           const SizedBox(height: 20),
           Row(
@@ -653,33 +585,14 @@ class _AnalyticsDashboardScreenState
   }
 
   Widget _buildTopicsCard(List<String> topics, ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.category, color: theme.primaryColor),
-              const SizedBox(width: 8),
-              Text(
-                'Your Interests',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+          SectionHeader(
+            icon: Icons.category,
+            iconColor: Colors.pink,
+            title: 'Your Interests',
           ),
           const SizedBox(height: 16),
           Wrap(
@@ -711,33 +624,14 @@ class _AnalyticsDashboardScreenState
   }
 
   Widget _buildStreakAnalysisCard(StreakAnalysis analysis, ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.whatshot, color: Colors.orange),
-              const SizedBox(width: 8),
-              Text(
-                'Streak Analysis',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+          const SectionHeader(
+            icon: Icons.whatshot,
+            iconColor: Colors.orange,
+            title: 'Streak Analysis',
           ),
           const SizedBox(height: 16),
           Row(
@@ -774,33 +668,14 @@ class _AnalyticsDashboardScreenState
     final maxFreq =
         times.values.isEmpty ? 1 : times.values.reduce((a, b) => a > b ? a : b);
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.schedule, color: theme.primaryColor),
-              const SizedBox(width: 8),
-              Text(
-                'Reading Schedule',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+          SectionHeader(
+            icon: Icons.schedule,
+            iconColor: Colors.cyan,
+            title: 'Reading Schedule',
           ),
           const SizedBox(height: 16),
           ...times.entries.map((entry) {
@@ -839,33 +714,14 @@ class _AnalyticsDashboardScreenState
         ? 1
         : pattern.values.reduce((a, b) => a > b ? a : b);
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.calendar_view_week, color: theme.primaryColor),
-              const SizedBox(width: 8),
-              Text(
-                'Weekly Activity',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+          SectionHeader(
+            icon: Icons.calendar_view_week,
+            iconColor: Colors.deepPurple,
+            title: 'Weekly Activity',
           ),
           const SizedBox(height: 16),
           Row(
@@ -909,33 +765,14 @@ class _AnalyticsDashboardScreenState
   }
 
   Widget _buildGoalHistoryCard(List<bool> history, ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.track_changes, color: theme.primaryColor),
-              const SizedBox(width: 8),
-              Text(
-                'Goal Achievement',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+          SectionHeader(
+            icon: Icons.track_changes,
+            iconColor: Colors.green,
+            title: 'Goal Achievement',
           ),
           const SizedBox(height: 16),
           Row(

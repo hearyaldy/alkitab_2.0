@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/auth_service.dart';
+import '../../config/theme.dart';
 
 class ResetPasswordScreen extends ConsumerStatefulWidget {
   const ResetPasswordScreen({super.key});
@@ -94,7 +95,7 @@ class ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
           const Icon(
             Icons.lock_reset,
             size: 70,
-            color: Colors.blue,
+            color: AppTheme.primaryColor,
           ),
           const SizedBox(height: 16),
           const Text(
@@ -172,7 +173,7 @@ class ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
         const Icon(
           Icons.check_circle,
           size: 80,
-          color: Colors.green,
+          color: AppTheme.successColor,
         ),
         const SizedBox(height: 16),
         const Text(

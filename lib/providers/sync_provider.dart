@@ -1,9 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/firebase_data_service.dart';
+import '../services/progress_tracking_service.dart';
 import '../models/sync_models.dart';
 
 final syncStateProvider = StateNotifierProvider<SyncNotifier, SyncState>((ref) {
-  return SyncNotifier(FirebaseDataService());
+  return SyncNotifier(FirebaseDataService(), ProgressTrackingService());
 });
 
 class SyncState {
@@ -32,8 +33,9 @@ class SyncState {
 
 class SyncNotifier extends StateNotifier<SyncState> {
   final FirebaseDataService _dataService;
+  final ProgressTrackingService _progressService;
 
-  SyncNotifier(this._dataService) : super(SyncState());
+  SyncNotifier(this._dataService, this._progressService) : super(SyncState());
 
   Future<void> syncAll() async {
     if (state.isSyncing) return;
@@ -41,17 +43,10 @@ class SyncNotifier extends StateNotifier<SyncState> {
     state = state.copyWith(isSyncing: true, error: null);
 
     try {
-      // Sync user preferences
-      final prefs = await _dataService.getUserPreferences();
-      if (prefs != null) {
-        // Apply preferences to local storage
-        // TODO: Implement this based on your preferences structure
-      }
-
-      // Sync bible marks
-      final marks = await _dataService.getBibleMarks();
-      // TODO: Merge with local storage
-      print('Retrieved ${marks.length} bible marks');
+      // Pull reading progress (streak, totals, weekly goal) from the cloud
+      // and merge it into local storage. Bookmarks and highlights already
+      // sync live via Firestore streams, so they don't need a manual pull.
+      await _progressService.syncProgressFromCloud();
 
       // Update sync timestamp
       state = state.copyWith(

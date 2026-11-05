@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 import '../services/offline_cache_service.dart';
+import 'app_card.dart';
+import 'section_header.dart';
 
 class CacheInfoWidget extends StatefulWidget {
   const CacheInfoWidget({super.key});
@@ -39,27 +41,20 @@ class _CacheInfoWidgetState extends State<CacheInfoWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.all(16),
-      child: Padding(
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: AppCard(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                const Icon(Icons.storage, color: Colors.blue),
-                const SizedBox(width: 8),
-                const Text(
-                  'Offline Cache Status',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.refresh),
-                  onPressed: _loadCacheInfo,
-                ),
-              ],
+            SectionHeader(
+              icon: Icons.storage,
+              title: 'Offline Cache Status',
+              trailing: IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: _loadCacheInfo,
+              ),
             ),
             const SizedBox(height: 16),
 

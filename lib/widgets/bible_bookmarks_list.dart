@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'bible_verse_detail_sheet.dart';
+import 'empty_state.dart';
 
 class BibleBookmarksList extends StatefulWidget {
   final VoidCallback onRefresh;
@@ -71,7 +72,7 @@ class _BibleBookmarksListState extends State<BibleBookmarksList> {
           bookmark['reference'] ?? bookmark['verse_reference'] ?? 'Bible verse';
       final verseText = bookmark['verse_text'] ?? '';
 
-      final shareText = '$reference - $verseText\n\nShared from My Faith App';
+      final shareText = '$reference - $verseText\n\nShared from Alkitab 2.0';
 
       await SharePlus.instance.share(ShareParams(text: shareText));
     } catch (e) {
@@ -120,34 +121,13 @@ class _BibleBookmarksListState extends State<BibleBookmarksList> {
 
         final bookmarks = snapshot.data?.docs ?? [];
         if (bookmarks.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.book_outlined, size: 64, color: Colors.grey),
-                const SizedBox(height: 16),
-                const Text(
-                  'No Bible verse bookmarks yet',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Bookmark your favorite Bible verses to see them here',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey),
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.book),
-                  label: const Text('Go to Bible'),
-                  onPressed: () => context.go('/bible'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.indigo,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ],
-            ),
+          return EmptyState(
+            icon: Icons.book_outlined,
+            title: 'No Bible verse bookmarks yet',
+            subtitle: 'Bookmark your favorite Bible verses to see them here',
+            ctaLabel: 'Go to Bible',
+            ctaIcon: Icons.book,
+            onCta: () => context.go('/bible'),
           );
         }
 

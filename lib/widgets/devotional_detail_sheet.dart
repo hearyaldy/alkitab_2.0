@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/devotional_model.dart';
+import 'section_header.dart';
 
 class DevotionalDetailSheet extends StatelessWidget {
   final Map<String, dynamic> bookmark;
@@ -92,13 +93,7 @@ class DevotionalDetailSheet extends StatelessWidget {
 
                 // Content
                 if (content.isNotEmpty) ...[
-                  const Text(
-                    'Devotional',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  const SectionHeader(title: 'Devotional'),
                   const SizedBox(height: 8),
                   Text(
                     content,
@@ -109,13 +104,7 @@ class DevotionalDetailSheet extends StatelessWidget {
 
                 // Reflection Questions
                 if (reflectionQuestions.isNotEmpty) ...[
-                  const Text(
-                    'Reflection Questions',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  const SectionHeader(title: 'Reflection Questions'),
                   const SizedBox(height: 8),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -134,13 +123,7 @@ class DevotionalDetailSheet extends StatelessWidget {
 
                 // Prayer
                 if (prayer.isNotEmpty) ...[
-                  const Text(
-                    'Prayer',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  const SectionHeader(title: 'Prayer'),
                   const SizedBox(height: 8),
                   Text(
                     prayer,

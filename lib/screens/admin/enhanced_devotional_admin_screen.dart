@@ -184,7 +184,9 @@ class _EnhancedDevotionalAdminScreenState
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+                foregroundColor: Theme.of(context).colorScheme.onError),
             child: const Text('Delete All'),
           ),
         ],
@@ -223,8 +225,10 @@ class _EnhancedDevotionalAdminScreenState
   Future<void> _bulkEdit() async {
     if (_selectedDevotionals.isEmpty) return;
 
-    final result = await showDialog<Map<String, dynamic>>(
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) => _BulkEditDialog(),
     );
 
@@ -289,19 +293,65 @@ class _EnhancedDevotionalAdminScreenState
       // For now, we'll show the JSON in a dialog
       // In a real app, you'd save this to a file
       if (mounted) {
-        showDialog(
+        showModalBottomSheet(
           context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Export Data'),
-            content: SingleChildScrollView(
-              child: SelectableText(jsonString),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Close'),
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (context) => DraggableScrollableSheet(
+            initialChildSize: 0.7,
+            minChildSize: 0.4,
+            maxChildSize: 0.95,
+            expand: false,
+            builder: (context, scrollController) => Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(20)),
               ),
-            ],
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12, bottom: 4),
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Export Data',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleLarge
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.all(16),
+                      child: SelectableText(jsonString),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         );
       }
@@ -315,8 +365,10 @@ class _EnhancedDevotionalAdminScreenState
   }
 
   Future<void> _editDevotional(DevotionalModel devotional) async {
-    final result = await showDialog<DevotionalModel>(
+    final result = await showModalBottomSheet<DevotionalModel>(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) => DevotionalFormDialog(
         title: devotional.id.isEmpty ? 'Add Devotional' : 'Edit Devotional',
         initialDevotional: devotional,
@@ -358,7 +410,9 @@ class _EnhancedDevotionalAdminScreenState
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+                foregroundColor: Theme.of(context).colorScheme.onError),
             child: const Text('Delete'),
           ),
         ],
@@ -734,68 +788,105 @@ class _BulkEditDialogState extends State<_BulkEditDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Bulk Edit'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CheckboxListTile(
-            title: const Text('Update Author'),
-            value: _updateAuthor,
-            onChanged: (value) {
-              setState(() {
-                _updateAuthor = value ?? false;
-              });
-            },
-          ),
-          if (_updateAuthor)
-            TextField(
-              controller: _authorController,
-              decoration: const InputDecoration(
-                labelText: 'Author',
-                border: OutlineInputBorder(),
-              ),
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Text(
+                  'Bulk Edit',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                CheckboxListTile(
+                  title: const Text('Update Author'),
+                  value: _updateAuthor,
+                  onChanged: (value) {
+                    setState(() {
+                      _updateAuthor = value ?? false;
+                    });
+                  },
+                ),
+                if (_updateAuthor)
+                  TextField(
+                    controller: _authorController,
+                    decoration: const InputDecoration(
+                      labelText: 'Author',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                CheckboxListTile(
+                  title: const Text('Update Title Prefix'),
+                  value: _updateTitle,
+                  onChanged: (value) {
+                    setState(() {
+                      _updateTitle = value ?? false;
+                    });
+                  },
+                ),
+                if (_updateTitle)
+                  TextField(
+                    controller: _titleController,
+                    decoration: const InputDecoration(
+                      labelText: 'Title Prefix',
+                      hintText: 'Text to add before title',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: () {
+                        final result = <String, dynamic>{};
+                        if (_updateAuthor) {
+                          result['author'] = _authorController.text.trim();
+                        }
+                        if (_updateTitle) {
+                          result['title_prefix'] = _titleController.text.trim();
+                        }
+                        Navigator.pop(context, result.isNotEmpty ? result : null);
+                      },
+                      child: const Text('Apply'),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          const SizedBox(height: 16),
-          CheckboxListTile(
-            title: const Text('Update Title Prefix'),
-            value: _updateTitle,
-            onChanged: (value) {
-              setState(() {
-                _updateTitle = value ?? false;
-              });
-            },
           ),
-          if (_updateTitle)
-            TextField(
-              controller: _titleController,
-              decoration: const InputDecoration(
-                labelText: 'Title Prefix',
-                hintText: 'Text to add before title',
-                border: OutlineInputBorder(),
-              ),
-            ),
-        ],
+        ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            final result = <String, dynamic>{};
-            if (_updateAuthor) {
-              result['author'] = _authorController.text.trim();
-            }
-            if (_updateTitle) {
-              result['title_prefix'] = _titleController.text.trim();
-            }
-            Navigator.pop(context, result.isNotEmpty ? result : null);
-          },
-          child: const Text('Apply'),
-        ),
-      ],
     );
   }
 }

@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../models/devotional_model.dart';
+import 'empty_state.dart';
 
 class NotesBookmarksList extends StatelessWidget {
   final Future<List<Map<String, dynamic>>> notesFuture;
@@ -55,34 +56,13 @@ class NotesBookmarksList extends StatelessWidget {
         final notes = snapshot.data ?? [];
 
         if (notes.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.note_outlined, size: 64, color: Colors.grey),
-                const SizedBox(height: 16),
-                const Text(
-                  'No notes yet',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Add notes to devotionals to see them here',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey),
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.menu_book),
-                  label: const Text('Go to Devotionals'),
-                  onPressed: () => context.go('/devotional'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.indigo,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ],
-            ),
+          return EmptyState(
+            icon: Icons.note_outlined,
+            title: 'No notes yet',
+            subtitle: 'Add notes to devotionals to see them here',
+            ctaLabel: 'Go to Devotionals',
+            ctaIcon: Icons.menu_book,
+            onCta: () => context.go('/devotional'),
           );
         }
 

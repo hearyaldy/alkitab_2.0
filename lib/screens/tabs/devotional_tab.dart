@@ -4,6 +4,7 @@ import 'dart:async'; // Import for Timer class
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../widgets/enhanced_devotional_card.dart';
+import '../../widgets/empty_state.dart';
 
 import '../../models/devotional_model.dart';
 import '../../services/devotional_service.dart';
@@ -292,10 +293,10 @@ class _DevotionalTabState extends State<DevotionalTab> {
               )
             else if (_allDevotionals.isEmpty)
               const Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Text(
-                  'No devotionals found.',
-                  textAlign: TextAlign.center,
+                padding: EdgeInsets.symmetric(vertical: 16.0),
+                child: EmptyState(
+                  icon: Icons.menu_book_outlined,
+                  title: 'No devotionals found',
                 ),
               )
             else ...[

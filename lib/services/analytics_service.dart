@@ -146,22 +146,52 @@ class AnalyticsService {
   }
 
   // Helper methods for analytics calculations
+
+  // Average reading time per session is not currently tracked anywhere
+  // (no session start/end timestamps are recorded), so there is no real
+  // value to compute here.
   Future<Duration> _getAverageReadingTime() async {
-    // Simplified calculation - would be tracked from actual usage
-    return const Duration(minutes: 8);
+    return Duration.zero;
   }
 
   Future<List<String>> _getFavoriteTopics() async {
-    // Simplified - would be based on reading history
-    return ['Faith', 'Hope', 'Love', 'Prayer', 'Peace'];
+    final readIds = (await _progressService.getReadDevotionals()).toSet();
+    if (readIds.isEmpty) return [];
+
+    final devotionals = await _devotionalService.getAllDevotionals();
+    final readDevotionals = devotionals
+        .where((d) => readIds.contains(d.id) || readIds.contains(d.title));
+
+    final topics = <String, int>{};
+    for (final devotional in readDevotionals) {
+      for (final word in _extractTopicWords(devotional.title, devotional.content)) {
+        topics[word] = (topics[word] ?? 0) + 1;
+      }
+    }
+
+    final sorted = topics.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return sorted.take(5).map((e) => _capitalize(e.key)).toList();
   }
 
+  Iterable<String> _extractTopicWords(String title, String content) {
+    return '$title $content'
+        .toLowerCase()
+        .split(RegExp(r'\W+'))
+        .where((word) => word.length > 4)
+        .take(5);
+  }
+
+  String _capitalize(String word) =>
+      word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1)}';
+
+  // Reading days are derived from the real tracked last-read date and
+  // current streak length, since no per-day log is stored separately.
   Future<List<DateTime>> _getReadingDays() async {
-    // Get days when user read devotionals
-    final readDevotionals = await _progressService.getReadDevotionals();
-    // Simplified - return recent days
-    final now = DateTime.now();
-    return List.generate(7, (index) => now.subtract(Duration(days: index)));
+    final streak = await _progressService.getReadingStreak();
+    final lastRead = await _progressService.getLastReadDate();
+    if (streak <= 0 || lastRead == null) return [];
+    return List.generate(streak, (index) => lastRead.subtract(Duration(days: index)));
   }
 
   Future<Map<String, int>> _getContentDistribution(
@@ -177,33 +207,47 @@ class AnalyticsService {
     return distribution;
   }
 
+  // The app does not persist any session/last-active timestamp per user,
+  // so active-user counts cannot be computed yet. Returning 0 rather than
+  // a fabricated figure until real session tracking exists.
   Future<int> _getDailyActiveUsers() async {
-    // Simplified - would query actual user activity
-    return 150;
+    return 0;
   }
 
   Future<int> _getWeeklyActiveUsers() async {
-    return 800;
+    return 0;
   }
 
   Future<int> _getMonthlyActiveUsers() async {
-    return 2500;
+    return 0;
   }
 
+  // No session start/end is tracked anywhere, so there is nothing to
+  // average here.
   Future<Duration> _getAverageSessionDuration() async {
-    return const Duration(minutes: 12);
+    return Duration.zero;
   }
 
+  // Retention requires a login-history per user, which isn't tracked.
   Future<double> _getRetentionRate() async {
-    return 0.75; // 75%
+    return 0.0;
   }
 
+  // Shares go through the OS share sheet (share_plus) and are never
+  // logged anywhere, so there is no real share count to report.
   Future<int> _getShareCount() async {
-    return 420;
+    return 0;
   }
 
   Future<int> _getBookmarkCount() async {
-    return 1200;
+    try {
+      final countSnapshot =
+          await _firestore.collection('user_bookmarks').count().get();
+      return countSnapshot.count ?? 0;
+    } catch (e) {
+      debugPrint('Error getting bookmark count: $e');
+      return 0;
+    }
   }
 
   String _getMonthName(int month) {
@@ -240,8 +284,9 @@ class AnalyticsService {
         streakAnalysis: StreakAnalysis(
           currentStreak: progressSummary.currentStreak,
           longestStreak: progressSummary.monthlyStats.longestStreak,
-          averageStreak: 5, // Simplified
-          streakDistribution: [1, 3, 7, 14, 30], // Common streak lengths
+          // No history of past streaks is stored, only the current one.
+          averageStreak: 0,
+          streakDistribution: const [],
         ),
         goalAchievementHistory: await _getGoalAchievementHistory(),
       );
@@ -251,50 +296,22 @@ class AnalyticsService {
     }
   }
 
+  // Reading events aren't timestamped with time-of-day, so no real
+  // hour-of-day distribution can be produced.
   Future<Map<int, int>> _getPreferredReadingTimes() async {
-    // Hour of day -> frequency
-    return {
-      6: 15,
-      7: 25,
-      8: 35,
-      9: 20,
-      10: 10,
-      18: 30,
-      19: 40,
-      20: 45,
-      21: 35,
-      22: 20,
-    };
+    return {};
   }
 
+  // Reading events aren't timestamped with day-of-week either, only a
+  // running streak/total count, so no real weekly pattern exists yet.
   Future<Map<String, int>> _getWeeklyReadingPattern() async {
-    return {
-      'Monday': 8,
-      'Tuesday': 6,
-      'Wednesday': 7,
-      'Thursday': 5,
-      'Friday': 4,
-      'Saturday': 9,
-      'Sunday': 10,
-    };
+    return {};
   }
 
+  // Only the current week's goal progress is tracked; past weeks aren't
+  // retained, so there's no real 12-week history to report.
   Future<List<bool>> _getGoalAchievementHistory() async {
-    // Last 12 weeks of goal achievement
-    return [
-      true,
-      true,
-      false,
-      true,
-      true,
-      true,
-      false,
-      true,
-      true,
-      false,
-      true,
-      true
-    ];
+    return [];
   }
 
   // Export analytics data

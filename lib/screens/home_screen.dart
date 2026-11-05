@@ -111,11 +111,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         unselectedItemColor: theme.disabledColor,
         backgroundColor: theme.colorScheme.surface,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Utama'),
-          BottomNavigationBarItem(icon: Icon(Icons.book), label: 'Alkitab'),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.book), label: 'Bible'),
           BottomNavigationBarItem(
-              icon: Icon(Icons.menu_book), label: 'Renungan'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
+              icon: Icon(Icons.menu_book), label: 'Devotional'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
       floatingActionButton: Stack(

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../services/admin_service.dart';
+import '../../config/theme.dart';
 
 class UserAdminScreen extends StatefulWidget {
   const UserAdminScreen({super.key});
@@ -145,7 +146,9 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.successColor,
+                foregroundColor: Colors.white),
             child: const Text('Promote'),
           ),
         ],
@@ -184,7 +187,9 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+                foregroundColor: Theme.of(context).colorScheme.onError),
             child: const Text('Remove'),
           ),
         ],

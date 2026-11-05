@@ -73,6 +73,15 @@ class ProgressTrackingService {
     return box.get(_readingStreakKey, defaultValue: 0);
   }
 
+  // Get the date of the most recent reading, if any
+  Future<DateTime?> getLastReadDate() async {
+    await initialize();
+    final box = Hive.box(_progressBoxName);
+    final lastReadDate = box.get(_lastReadDateKey);
+    if (lastReadDate == null) return null;
+    return DateTime.parse(lastReadDate);
+  }
+
   // Get total devotionals read
   Future<int> getTotalDevotionalsRead() async {
     await initialize();

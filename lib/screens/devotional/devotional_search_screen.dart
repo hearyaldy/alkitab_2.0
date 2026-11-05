@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/devotional_model.dart';
 import '../../services/search_service.dart';
 import '../../widgets/enhanced_devotional_card.dart';
+import '../../widgets/shimmer_list_placeholder.dart';
+import '../../widgets/empty_state.dart';
 import '../../services/bookmark_service.dart';
 import '../../services/sync_queue_processor.dart';
 import '../../services/auth_service.dart';
@@ -268,7 +270,7 @@ class _DevotionalSearchScreenState extends ConsumerState<DevotionalSearchScreen>
           // Search results
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const ShimmerListPlaceholder()
                 : _searchResults.isEmpty && _searchController.text.isNotEmpty
                     ? _buildNoResults()
                     : _searchResults.isEmpty
@@ -281,29 +283,10 @@ class _DevotionalSearchScreenState extends ConsumerState<DevotionalSearchScreen>
   }
 
   Widget _buildNoResults() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.search_off,
-            size: 64,
-            color: Colors.grey[400],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No devotionals found',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Try different keywords or browse popular topics',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey[600],
-                ),
-          ),
-        ],
-      ),
+    return const EmptyState(
+      icon: Icons.search_off,
+      title: 'No devotionals found',
+      subtitle: 'Try different keywords or browse popular topics',
     );
   }
 

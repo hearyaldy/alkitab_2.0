@@ -104,7 +104,7 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -172,7 +172,7 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: Theme.of(context).primaryColor,
+            activeThumbColor: Theme.of(context).primaryColor,
           ),
         ],
       ),
@@ -308,13 +308,13 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
   String _getThemeDisplayName(String theme) {
     switch (theme) {
       case 'classic':
-        return 'Klasik';
+        return 'Classic';
       case 'modern':
         return 'Modern';
       case 'sepia':
         return 'Sepia';
       default:
-        return 'Klasik';
+        return 'Classic';
     }
   }
 
@@ -324,7 +324,7 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
       builder: (context) {
         double tempFontSize = _fontSize;
         return AlertDialog(
-          title: const Text('Ukuran Font'),
+          title: const Text('Font Size'),
           content: StatefulBuilder(
             builder: (context, setState) {
               return Column(
@@ -341,7 +341,7 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
                     },
                   ),
                   Text(
-                    'Contoh Teks',
+                    'Sample Text',
                     style: TextStyle(fontSize: tempFontSize),
                   ),
                 ],
@@ -351,7 +351,7 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('BATAL'),
+              child: const Text('Cancel'),
             ),
             TextButton(
               onPressed: () {
@@ -359,7 +359,7 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _saveSettings();
                 Navigator.pop(context);
               },
-              child: const Text('SIMPAN'),
+              child: const Text('Save'),
             ),
           ],
         );
@@ -373,14 +373,14 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Pilih Font'),
+          title: const Text('Choose Font'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: fonts
                 .map(
                   (font) => ListTile(
                     title: Text(
-                      'Contoh Teks',
+                      'Sample Text',
                       style: TextStyle(fontFamily: font),
                     ),
                     subtitle: Text(font),
@@ -404,7 +404,7 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Pilih Tema'),
+          title: const Text('Choose Theme'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: themes
@@ -426,26 +426,68 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _showAudioVoiceDialog() async {
-    await showDialog(
+    await showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Pilih Suara'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: _availableVoices
-                .map(
-                  (voice) => ListTile(
-                    title: Text(voice),
-                    onTap: () {
-                      setState(() => _audioVoice = voice);
-                      _saveSettings();
-                      Navigator.pop(context);
-                    },
+        return DraggableScrollableSheet(
+          initialChildSize: 0.6,
+          minChildSize: 0.3,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (context, scrollController) {
+            return Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12, bottom: 4),
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
                   ),
-                )
-                .toList(),
-          ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Text(
+                      'Choose Voice',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: ListView.builder(
+                      controller: scrollController,
+                      itemCount: _availableVoices.length,
+                      itemBuilder: (context, index) {
+                        final voice = _availableVoices[index];
+                        return ListTile(
+                          title: Text(voice),
+                          onTap: () {
+                            setState(() => _audioVoice = voice);
+                            _saveSettings();
+                            Navigator.pop(context);
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
         );
       },
     );
@@ -456,7 +498,7 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Pilih Versi Alkitab'),
+          title: const Text('Choose Bible Version'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -489,11 +531,9 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
     return Scaffold(
       backgroundColor: isDark ? Colors.grey[900] : Colors.grey[50],
       appBar: AppBar(
-        title: const Text(
-          'Pengaturan',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Settings'),
         backgroundColor: isDark ? Colors.grey[850] : Colors.white,
+        foregroundColor: isDark ? Colors.white : Colors.black87,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -508,14 +548,14 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
             // Appearance Section
             _buildSection(
               context,
-              'Tampilan',
+              'Appearance',
               Icons.palette_outlined,
               Colors.purple,
               [
                 _buildModernSwitchTile(
                   context,
-                  'Mode Gelap',
-                  'Gunakan tema gelap untuk kenyamanan mata',
+                  'Dark Mode',
+                  'Use a dark theme for eye comfort',
                   _darkMode,
                   (value) {
                     setState(() => _darkMode = value);
@@ -527,22 +567,22 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 _buildModernTile(
                   context,
-                  'Ukuran Teks',
-                  'Sesuaikan ukuran font untuk kenyamanan membaca',
+                  'Text Size',
+                  'Adjust the font size for comfortable reading',
                   '${_fontSize.toInt()}pt',
                   () => _showFontSizeDialog(),
                 ),
                 _buildModernTile(
                   context,
-                  'Jenis Font',
-                  'Pilih gaya font untuk teks Alkitab',
+                  'Font Type',
+                  'Choose the font style for Bible text',
                   _getFontDisplayName(_fontFamily),
                   () => _showFontFamilyDialog(),
                 ),
                 _buildModernTile(
                   context,
-                  'Tema Warna',
-                  'Pilih skema warna aplikasi',
+                  'Color Theme',
+                  'Choose the app color scheme',
                   _getThemeDisplayName(_colorTheme),
                   () => _showColorThemeDialog(),
                 ),
@@ -554,14 +594,14 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
             // Reading Section
             _buildSection(
               context,
-              'Alkitab',
+              'Bible',
               Icons.menu_book_outlined,
               Colors.blue,
               [
                 _buildModernTile(
                   context,
-                  'Versi Alkitab Default',
-                  'Pilih terjemahan Alkitab yang diinginkan',
+                  'Default Bible Version',
+                  'Choose your preferred Bible translation',
                   bibleVersion == 'ABB'
                       ? 'Alkitab Berita Baik'
                       : 'Terjemahan Baru',
@@ -575,21 +615,21 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
             // Audio Section
             _buildSection(
               context,
-              'Pengaturan Audio',
+              'Audio Settings',
               Icons.volume_up_outlined,
               Colors.green,
               [
                 _buildModernTile(
                   context,
-                  'Jenis Suara',
-                  'Pilih suara untuk pembacaan audio',
+                  'Voice Type',
+                  'Choose the voice for audio reading',
                   _audioVoice,
                   () => _showAudioVoiceDialog(),
                 ),
                 _buildModernSliderTile(
                   context,
-                  'Kecepatan Baca',
-                  'Atur kecepatan pembacaan audio',
+                  'Reading Speed',
+                  'Adjust the audio reading speed',
                   _audioSpeed,
                   0.1,
                   1.5,
@@ -600,8 +640,8 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 _buildModernSliderTile(
                   context,
-                  'Nada Suara',
-                  'Atur tinggi rendah nada suara',
+                  'Voice Pitch',
+                  'Adjust the voice pitch',
                   _audioPitch,
                   0.5,
                   2.0,
@@ -613,7 +653,7 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _buildModernSliderTile(
                   context,
                   'Volume',
-                  'Atur tingkat volume audio',
+                  'Adjust the audio volume level',
                   _audioVolume,
                   0.1,
                   1.0,
@@ -630,14 +670,14 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
             // Notifications Section
             _buildSection(
               context,
-              'Notifikasi',
+              'Notifications',
               Icons.notifications_outlined,
               Colors.orange,
               [
                 _buildModernSwitchTile(
                   context,
-                  'Ayat Hari Ini',
-                  'Terima notifikasi ayat harian setiap pagi',
+                  'Verse of the Day',
+                  'Receive a daily verse notification every morning',
                   _notifications,
                   (value) {
                     setState(() => _notifications = value);
@@ -652,28 +692,28 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
             // About Section
             _buildSection(
               context,
-              'Tentang Aplikasi',
+              'About the App',
               Icons.info_outline,
               Colors.grey[600]!,
               [
                 _buildModernTile(
                   context,
-                  'Versi Aplikasi',
-                  'Alkitab 2.0 - Versi terbaru',
+                  'App Version',
+                  'Alkitab 2.0 - Latest version',
                   '1.1.0',
                   null,
                 ),
                 _buildModernTile(
                   context,
-                  'Syarat & Ketentuan',
-                  'Baca syarat penggunaan aplikasi',
+                  'Terms & Conditions',
+                  'Read the app\'s terms of use',
                   '',
                   () {},
                 ),
                 _buildModernTile(
                   context,
-                  'Kebijakan Privasi',
-                  'Informasi tentang privasi data Anda',
+                  'Privacy Policy',
+                  'Information about your data privacy',
                   '',
                   () {},
                 ),
@@ -685,7 +725,7 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
             // Account & Sync Section
             _buildSection(
               context,
-              'Akun & Sinkronisasi',
+              'Account & Sync',
               Icons.person_outline,
               Colors.blue,
               [
@@ -701,8 +741,8 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
                             children: [
                               _buildModernTile(
                                 context,
-                                'Masuk',
-                                'Masuk untuk menyinkronkan data',
+                                'Sign In',
+                                'Sign in to sync your data',
                                 '',
                                 () => _showLoginDialog(context, ref),
                               ),
@@ -721,10 +761,10 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
                             ),
                             _buildModernTile(
                               context,
-                              'Sinkronisasi',
+                              'Sync',
                               syncState.lastSynced != null
-                                  ? 'Terakhir: ${_formatDateTime(syncState.lastSynced!)}'
-                                  : 'Belum pernah disinkronkan',
+                                  ? 'Last synced: ${_formatDateTime(syncState.lastSynced!)}'
+                                  : 'Never synced',
                               '',
                               syncState.isSyncing ? null : () => _sync(ref),
                             ),
@@ -739,8 +779,8 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
                               ),
                             _buildModernTile(
                               context,
-                              'Keluar',
-                              'Keluar dari akun Anda',
+                              'Sign Out',
+                              'Sign out of your account',
                               '',
                               () => _showLogoutConfirmation(ref),
                             ),
@@ -753,7 +793,7 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
                       error: (_, __) => _buildModernTile(
                         context,
                         'Error',
-                        'Gagal memuat status autentikasi',
+                        'Failed to load authentication status',
                         '',
                         null,
                       ),
@@ -784,7 +824,7 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Masuk'),
+        title: const Text('Sign In'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -795,11 +835,11 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
                     await ref.read(userProvider.notifier).signInWithGoogle();
                 if (!success) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Gagal masuk dengan Google')),
+                    const SnackBar(content: Text('Failed to sign in with Google')),
                   );
                 }
               },
-              child: const Text('Masuk dengan Google'),
+              child: const Text('Sign in with Google'),
             ),
             const SizedBox(height: 16),
             ElevatedButton(
@@ -807,7 +847,7 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
                 Navigator.pop(context);
                 context.push('/login'); // Implement email login screen
               },
-              child: const Text('Masuk dengan Email'),
+              child: const Text('Sign in with Email'),
             ),
           ],
         ),
@@ -819,19 +859,19 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Keluar'),
-        content: const Text('Anda yakin ingin keluar?'),
+        title: const Text('Sign Out'),
+        content: const Text('Are you sure you want to sign out?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
+            child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () async {
               await ref.read(userProvider.notifier).signOut();
               Navigator.pop(context);
             },
-            child: const Text('Keluar'),
+            child: const Text('Sign Out'),
           ),
         ],
       ),

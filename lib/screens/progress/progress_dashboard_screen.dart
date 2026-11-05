@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../services/progress_tracking_service.dart';
 import '../../services/auth_service.dart';
+import '../../widgets/app_card.dart';
+import '../../widgets/section_header.dart';
+import '../../widgets/circle_icon_badge.dart';
 
 class ProgressDashboardScreen extends ConsumerStatefulWidget {
   const ProgressDashboardScreen({super.key});
@@ -13,6 +16,7 @@ class ProgressDashboardScreen extends ConsumerStatefulWidget {
 class _ProgressDashboardScreenState extends ConsumerState<ProgressDashboardScreen> {
   final ProgressTrackingService _progressService = ProgressTrackingService();
   ProgressSummary? _progressSummary;
+  DateTime? _lastReadDate;
   bool _isLoading = true;
 
   @override
@@ -30,9 +34,11 @@ class _ProgressDashboardScreenState extends ConsumerState<ProgressDashboardScree
     try {
       await _progressService.initialize();
       final summary = await _progressService.getProgressSummary();
+      final lastReadDate = await _progressService.getLastReadDate();
       if (mounted) {
         setState(() {
           _progressSummary = summary;
+          _lastReadDate = lastReadDate;
           _isLoading = false;
         });
       }
@@ -150,31 +156,18 @@ class _ProgressDashboardScreenState extends ConsumerState<ProgressDashboardScree
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header stats
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatCard(
-                  'Current Streak',
-                  '${summary.currentStreak}',
-                  'days',
-                  Icons.local_fire_department,
-                  Colors.orange,
-                  theme,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildStatCard(
-                  'Total Read',
-                  '${summary.totalDevotionalsRead}',
-                  'devotionals',
-                  Icons.menu_book,
-                  Colors.blue,
-                  theme,
-                ),
-              ),
-            ],
+          // Streak hero card
+          _buildStreakHeroCard(summary, theme),
+
+          const SizedBox(height: 16),
+
+          _buildStatCard(
+            'Total Read',
+            '${summary.totalDevotionalsRead}',
+            'devotionals',
+            Icons.menu_book,
+            Colors.purple,
+            theme,
           ),
 
           const SizedBox(height: 24),
@@ -196,6 +189,100 @@ class _ProgressDashboardScreenState extends ConsumerState<ProgressDashboardScree
     );
   }
 
+  // Longer streaks get a progressively more exciting color + icon,
+  // mirroring LPMI40's tiered streak treatment.
+  Color _streakColor(int days) {
+    if (days >= 30) return Colors.purple;
+    if (days >= 14) return Colors.orange;
+    if (days >= 7) return Colors.green;
+    if (days >= 1) return Colors.blue;
+    return Colors.grey;
+  }
+
+  IconData _streakIcon(int days) {
+    if (days >= 30) return Icons.emoji_events;
+    if (days >= 14) return Icons.local_fire_department;
+    if (days >= 7) return Icons.whatshot;
+    return Icons.calendar_today;
+  }
+
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  Widget _buildStreakHeroCard(ProgressSummary summary, ThemeData theme) {
+    final streak = summary.currentStreak;
+    final color = _streakColor(streak);
+    final icon = _streakIcon(streak);
+    final bestStreak = summary.monthlyStats.longestStreak;
+    final readToday =
+        _lastReadDate != null && _isSameDay(_lastReadDate!, DateTime.now());
+
+    final String microcopy;
+    if (streak == 0) {
+      microcopy = 'Read today to start a new streak!';
+    } else if (readToday) {
+      microcopy = 'Keep it going!';
+    } else {
+      microcopy = 'Read today to continue your streak!';
+    }
+
+    return AppCard(
+      color: color.withValues(alpha: 0.1),
+      child: Stack(
+        children: [
+          if (bestStreak > 0)
+            Positioned(
+              top: 0,
+              right: 0,
+              child: Text(
+                'Best: $bestStreak',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleIconBadge(icon: icon, color: color, size: 56, iconSize: 28),
+                  const SizedBox(width: 16),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '$streak',
+                        style: TextStyle(
+                          fontSize: 36,
+                          fontWeight: FontWeight.bold,
+                          color: color,
+                        ),
+                      ),
+                      Text(
+                        streak == 1 ? 'day streak' : 'days streak',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                microcopy,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: Colors.grey[700],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStatCard(
     String title,
     String value,
@@ -204,32 +291,13 @@ class _ProgressDashboardScreenState extends ConsumerState<ProgressDashboardScree
     Color color,
     ThemeData theme,
   ) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, color: color, size: 24),
-              ),
+              CircleIconBadge(icon: icon, color: color),
               const Spacer(),
             ],
           ),
@@ -261,44 +329,29 @@ class _ProgressDashboardScreenState extends ConsumerState<ProgressDashboardScree
   }
 
   Widget _buildWeeklyProgressCard(WeeklyProgress weeklyProgress, ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.date_range, color: theme.primaryColor),
-              const SizedBox(width: 8),
-              Text(
-                'Weekly Progress',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
+          SectionHeader(
+            icon: Icons.date_range,
+            iconColor: Colors.blue,
+            title: 'Weekly Progress',
+            trailing: TextButton(
+              onPressed: _updateWeeklyGoal,
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                'Goal: ${weeklyProgress.goal}',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.primaryColor,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-              const Spacer(),
-              GestureDetector(
-                onTap: _updateWeeklyGoal,
-                child: Text(
-                  'Goal: ${weeklyProgress.goal}',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.primaryColor,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
           const SizedBox(height: 20),
           Row(
@@ -313,26 +366,29 @@ class _ProgressDashboardScreenState extends ConsumerState<ProgressDashboardScree
               Text(
                 '${(weeklyProgress.percentage * 100).toInt()}%',
                 style: theme.textTheme.titleMedium?.copyWith(
-                  color: weeklyProgress.isGoalMet ? Colors.green : Colors.orange,
+                  color: weeklyProgress.isGoalMet ? Colors.green : Colors.blue,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          LinearProgressIndicator(
-            value: weeklyProgress.percentage,
-            backgroundColor: Colors.grey[300],
-            valueColor: AlwaysStoppedAnimation(
-              weeklyProgress.isGoalMet ? Colors.green : Colors.orange,
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: weeklyProgress.percentage,
+              backgroundColor: Colors.grey[300],
+              valueColor: AlwaysStoppedAnimation(
+                weeklyProgress.isGoalMet ? Colors.green : Colors.blue,
+              ),
+              minHeight: 12,
             ),
-            minHeight: 8,
           ),
-          if (weeklyProgress.isGoalMet) ...[
-            const SizedBox(height: 12),
+          const SizedBox(height: 12),
+          if (weeklyProgress.isGoalMet)
             Row(
               children: [
-                Icon(Icons.check_circle, color: Colors.green, size: 20),
+                const Icon(Icons.check_circle, color: Colors.green, size: 20),
                 const SizedBox(width: 8),
                 Text(
                   'Goal achieved! 🎉',
@@ -342,8 +398,15 @@ class _ProgressDashboardScreenState extends ConsumerState<ProgressDashboardScree
                   ),
                 ),
               ],
+            )
+          else
+            Text(
+              '${weeklyProgress.goal - weeklyProgress.daysRead} more to go',
+              style: TextStyle(
+                color: Colors.blue[700],
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ],
         ],
       ),
     );
@@ -355,33 +418,14 @@ class _ProgressDashboardScreenState extends ConsumerState<ProgressDashboardScree
       'July', 'August', 'September', 'October', 'November', 'December'
     ];
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.calendar_month, color: theme.primaryColor),
-              const SizedBox(width: 8),
-              Text(
-                '${monthNames[monthlyStats.month - 1]} ${monthlyStats.year}',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+          SectionHeader(
+            icon: Icons.calendar_month,
+            iconColor: Colors.indigo,
+            title: '${monthNames[monthlyStats.month - 1]} ${monthlyStats.year}',
           ),
           const SizedBox(height: 20),
           Row(
@@ -391,6 +435,7 @@ class _ProgressDashboardScreenState extends ConsumerState<ProgressDashboardScree
                   'Devotionals',
                   '${monthlyStats.devotionalsRead}',
                   Icons.book,
+                  Colors.purple,
                   theme,
                 ),
               ),
@@ -399,6 +444,7 @@ class _ProgressDashboardScreenState extends ConsumerState<ProgressDashboardScree
                   'Longest Streak',
                   '${monthlyStats.longestStreak}',
                   Icons.trending_up,
+                  Colors.orange,
                   theme,
                 ),
               ),
@@ -409,10 +455,10 @@ class _ProgressDashboardScreenState extends ConsumerState<ProgressDashboardScree
     );
   }
 
-  Widget _buildMiniStat(String title, String value, IconData icon, ThemeData theme) {
+  Widget _buildMiniStat(String title, String value, IconData icon, Color color, ThemeData theme) {
     return Column(
       children: [
-        Icon(icon, color: theme.primaryColor, size: 32),
+        Icon(icon, color: color, size: 32),
         const SizedBox(height: 8),
         Text(
           value,
@@ -460,33 +506,14 @@ class _ProgressDashboardScreenState extends ConsumerState<ProgressDashboardScree
       ),
     ];
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.emoji_events, color: theme.primaryColor),
-              const SizedBox(width: 8),
-              Text(
-                'Achievements',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+          const SectionHeader(
+            icon: Icons.emoji_events,
+            iconColor: Colors.amber,
+            title: 'Achievements',
           ),
           const SizedBox(height: 16),
           ...achievements.map((achievement) => _buildAchievementItem(achievement, theme)),
@@ -500,19 +527,10 @@ class _ProgressDashboardScreenState extends ConsumerState<ProgressDashboardScree
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: achievement.isUnlocked
-                  ? Colors.yellow.withValues(alpha: 0.2)
-                  : Colors.grey.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              achievement.icon,
-              color: achievement.isUnlocked ? Colors.yellow[700] : Colors.grey,
-              size: 24,
-            ),
+          CircleIconBadge(
+            icon: achievement.icon,
+            color: achievement.isUnlocked ? Colors.amber[700]! : Colors.grey,
+            iconSize: 24,
           ),
           const SizedBox(width: 12),
           Expanded(
